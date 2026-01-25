@@ -36,3 +36,10 @@ def encode_hdf5_strings(S):
         List of numpy arrays that can be written to HDF5.
     """
     return [np.bytes_(x) for x in S]
+
+
+def units_for_key(key: str, registry) -> dict | None:
+    for spec in registry.values():
+        if key in spec.units:
+            return spec.units[key]
+    return None

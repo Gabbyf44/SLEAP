@@ -9,6 +9,7 @@ def feature_nearest_neighbor(tracks, features=None, ctr_ind=1, **kwargs):
 
     Args:
         tracks: (time, nodes, 2, fly)
+        features:
         ctr_ind: index of centroid node (thorax)
 
     Returns:

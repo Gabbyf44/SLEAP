@@ -5,8 +5,7 @@ from tkfilebrowser import askopendirnames
 from dataset import make_expt_dataset
 from perframe.create_perframe import export_perframe
 from perframe.trx_mat import save_trx
-
-BASE_PATH = r"D:\Galit'sLab Dropbox\Galit'sLabteamfolder\Rotem"
+from params import BASE_PATH
 
 def main():
     """

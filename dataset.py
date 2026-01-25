@@ -2,7 +2,7 @@ import os
 import h5py
 import numpy as np
 
-from io_utils import load_tracks, encode_hdf5_strings
+from io_utils import load_tracks, encode_hdf5_strings, units_for_key
 from features.registry import compute_item, REGISTRY
 from params import FPS, PXPERMM
 
@@ -91,8 +91,8 @@ def make_expt_dataset(expt_folder, h5_file, output_path=None, overwrite=False, c
         meta.create_dataset("source_analysis_file", data=np.bytes_(h5_file))
         meta.create_dataset("node_names", data=encode_hdf5_strings(node_names))
         meta.create_dataset("track_names", data=track_names)
-        meta.attrs["fps"] = FPS
-        meta.attrs["pxpermm"] = PXPERMM
+        meta.create_dataset("fps", data=FPS)
+        meta.create_dataset("pxpermm", data=PXPERMM)
 
         meta.create_dataset("ctr_ind", data=ctr_ind)
         meta.create_dataset("fwd_ind", data=fwd_ind)
@@ -130,6 +130,13 @@ def make_expt_dataset(expt_folder, h5_file, output_path=None, overwrite=False, c
         save_keys = list(dict.fromkeys(save_keys))
 
         for k in save_keys:
-            f.create_dataset(k, data=computed[k], compression=1)
+            ds = f.create_dataset(k, data=computed[k], compression=1)
+
+            u = units_for_key(k, REGISTRY)
+            if u is not None:
+                ds.attrs["quantity"] = u.get("quantity", "")
+                ds.attrs["unit_raw"] = u.get("unit_raw", "")
+                ds.attrs["unit_si"] = u.get("unit_si", "")
+                ds.attrs["scale_expr"] = u.get("scale_expr", "")
 
     return output_path

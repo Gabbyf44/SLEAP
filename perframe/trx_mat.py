@@ -59,9 +59,9 @@ def save_trx(features_source: Path, trx_dest: Path, timestamps: np.ndarray | Non
         if "meta" in f:
             meta = f["meta"]
             if "fps" in meta:
-                fps = float(np.array(meta["fps"][()]))
+                fps = float(meta["fps"][()])
             if "pxpermm" in meta:
-                pxpermm = float(np.array(meta["pxpermm"][()]))
+                pxpermm = float(meta["pxpermm"][()])
             if "track_names" in meta:
                 track_names = [x.decode() if isinstance(x, (bytes, np.bytes_)) else str(x)
                                for x in meta["track_names"][:]]
@@ -75,7 +75,7 @@ def save_trx(features_source: Path, trx_dest: Path, timestamps: np.ndarray | Non
         if len(fly_keys) == 0:
             raise ValueError("No fly datasets found in /pose/tracks")
 
-        # Try to infer movie file in the experiment folder (best-effort)
+        # Try to infer movie file in the experiment folder
         expt_dir = features_h5.parent
         movie_files = list(expt_dir.glob("movie.*"))
         movie_path = movie_files[0] if movie_files else None
@@ -120,16 +120,16 @@ def save_trx(features_source: Path, trx_dest: Path, timestamps: np.ndarray | Non
             theta = theta.astype(np.float64)
             theta[theta < 0] += 2 * np.pi
 
-            # "a" and "b" same as old code (px)
+            # "a" and "b"
             a = (np.sqrt(np.sum((head_pos - abdomen_pos) ** 2, axis=1)) / 4).astype(np.float64)
             b = (np.sqrt(np.sum((left_wing_pos - right_wing_pos) ** 2, axis=1)) / 4).astype(np.float64)
 
-            # px -> mm fields (still saved, even if you won't use now)
+            # px -> mm fields
             x_mm = x / float(pxpermm)
             y_mm = y / float(pxpermm)
             a_mm = a / float(pxpermm)
             b_mm = b / float(pxpermm)
-            theta_mm = theta  # angle unchanged
+            theta_mm = theta
 
             trx_entry: dict[str, object] = {"moviename": movie_path.name if movie_path else "movie",
                                             "moviefile": str(movie_path) if movie_path else "movie",
