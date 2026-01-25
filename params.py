@@ -1,0 +1,2 @@
+FPS = 30
+PXPERMM = 10.5
