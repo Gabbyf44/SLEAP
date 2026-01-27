@@ -1,0 +1,121 @@
+# conda activate sleap
+# python "C:\Users\labgali1\Galit'sLab Dropbox\Galit'sLabteamfolder\Rotem\pipeline\run_sleap_inference.py"
+
+from pathlib import Path
+import subprocess
+
+ARENA_PARENT_DIR = Path(r"W:\Rotem\analysisData")
+
+VIDEO_EXTENSIONS = [".avi", ".mp4", ".mov", ".mkv"]
+
+CENTROID_MODEL = Path(r"W:\Rotem\analysisData\currentModel\250717_141735.centroid.n=1104")
+INSTANCE_MODEL = Path(r"W:\Rotem\analysisData\currentModel\250717_162759.centered_instance.n=1104")
+
+OUTPUT_NAME = "inference.slp"
+
+def find_movie(arena_dir):
+    for ext in VIDEO_EXTENSIONS:
+        candidate = arena_dir / f"movie{ext}"
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def run_sleap(movie_path, output_path):
+    cmd = [
+        "sleap-track",
+        str(movie_path),
+        "--model", str(CENTROID_MODEL),
+        "--model", str(INSTANCE_MODEL),
+        "--output", str(output_path),
+        "--tracking.match", "hungarian",
+        "--tracking.max_tracking", "1",
+        "--tracking.max_tracks", "2",
+        "--tracking.target_instance_count", "2",
+        "--tracking.post_connect_single_breaks", "1",
+        "--tracking.similarity", "instance",
+        "--tracking.track_window", "5",
+        "--tracking.tracker", "flowmaxtracks",
+    ]
+    subprocess.run(cmd, check=True)
+
+
+def convert_to_h5(slp_path):
+    cmd = [
+        "sleap-convert",
+        str(slp_path),
+        "--format", "analysis"
+    ]
+
+    print("Converting to H5:")
+    print(" ".join(cmd))
+
+    subprocess.run(cmd, check=True)
+
+
+def parse_selection(selection, max_index):
+    selected = set()
+
+    for part in selection.split(","):
+        part = part.strip()
+        if "-" in part:
+            start, end = part.split("-")
+            selected.update(range(int(start), int(end) + 1))
+        else:
+            selected.add(int(part))
+
+    return [i for i in selected if 1 <= i <= max_index]
+
+
+def main():
+    arena_dirs = sorted(
+        [d for d in ARENA_PARENT_DIR.iterdir() if d.is_dir()]
+    )
+
+    if not arena_dirs:
+        print("No arena folders found")
+        return
+
+    print("\nAvailable arena folders:\n")
+    for i, d in enumerate(arena_dirs, start=1):
+        print(f"{i:2d}. {d.name}")
+
+    selection = input(
+        "\nSelect arenas to run (e.g. 1,3,5-7 or ENTER for all): "
+    ).strip()
+
+    if selection:
+        indices = parse_selection(selection, len(arena_dirs))
+        selected_dirs = [arena_dirs[i - 1] for i in indices]
+    else:
+        selected_dirs = arena_dirs
+
+    print(f"\nSelected {len(selected_dirs)} arenas\n")
+
+    for arena_dir in selected_dirs:
+        print(f"Processing {arena_dir.name}")
+
+        movie = find_movie(arena_dir)
+        if movie is None:
+            print("  No movie found, skipping")
+            continue
+
+        output = arena_dir / OUTPUT_NAME
+        if output.exists():
+            print("  Inference already exists, skipping")
+            continue
+
+        try:
+            run_sleap(movie, output)
+            print("  Inference done")
+
+            convert_to_h5(output)
+            print("  H5 conversion done")
+        except subprocess.CalledProcessError as e:
+            print(f"  ERROR: {e}")
+
+    print("\nInference completed")
+
+
+if __name__ == "__main__":
+    main()
