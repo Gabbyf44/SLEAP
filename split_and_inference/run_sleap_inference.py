@@ -1,17 +1,21 @@
-# conda activate sleap
-# python "C:\Users\labgali1\Galit'sLab Dropbox\Galit'sLabteamfolder\Rotem\pipeline\run_sleap_inference.py"
-
+import sys
 from pathlib import Path
 import subprocess
 
-ARENA_PARENT_DIR = Path(r"W:\Rotem\analysisData")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from params import ARENA_PARENT_DIR as _ARENA_PARENT_DIR
+from params import CENTROID_MODEL   as _CENTROID_MODEL
+from params import INSTANCE_MODEL   as _INSTANCE_MODEL
+from params import SLEAP_OUTPUT_NAME
 
 VIDEO_EXTENSIONS = [".avi", ".mp4", ".mov", ".mkv"]
 
-CENTROID_MODEL = Path(r"W:\Rotem\analysisData\currentModel\250717_141735.centroid.n=1104")
-INSTANCE_MODEL = Path(r"W:\Rotem\analysisData\currentModel\250717_162759.centered_instance.n=1104")
+ARENA_PARENT_DIR = Path(_ARENA_PARENT_DIR) if _ARENA_PARENT_DIR else Path(".")
+CENTROID_MODEL   = Path(_CENTROID_MODEL)   if _CENTROID_MODEL   else None
+INSTANCE_MODEL   = Path(_INSTANCE_MODEL)   if _INSTANCE_MODEL   else None
 
-OUTPUT_NAME = "inference.slp"
+OUTPUT_NAME = SLEAP_OUTPUT_NAME
 
 def find_movie(arena_dir):
     for ext in VIDEO_EXTENSIONS:
@@ -68,6 +72,15 @@ def parse_selection(selection, max_index):
 
 
 def main():
+    if CENTROID_MODEL is None or not CENTROID_MODEL.exists():
+        print(f"ERROR: CENTROID_MODEL is not configured or does not exist: {CENTROID_MODEL}")
+        print("Please set 'centroid_model' in config.yaml (or CENTROID_MODEL in params.py).")
+        return
+    if INSTANCE_MODEL is None or not INSTANCE_MODEL.exists():
+        print(f"ERROR: INSTANCE_MODEL is not configured or does not exist: {INSTANCE_MODEL}")
+        print("Please set 'instance_model' in config.yaml (or INSTANCE_MODEL in params.py).")
+        return
+
     arena_dirs = sorted(
         [d for d in ARENA_PARENT_DIR.iterdir() if d.is_dir()]
     )

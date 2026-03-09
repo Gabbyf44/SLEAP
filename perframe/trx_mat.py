@@ -3,8 +3,7 @@ import h5py
 import numpy as np
 
 from perframe.ds_utils import safe_savemat
-from params import FPS, PXPERMM
-
+from params import FPS, PXPERMM, NODE_IDX_HEAD, NODE_IDX_THORAX, NODE_IDX_ABDOMEN, NODE_IDX_L_WING, NODE_IDX_R_WING
 
 def save_trx(features_source: Path, trx_dest: Path, timestamps: np.ndarray | None = None, overwrite: bool = False) -> Path:
     features_h5 = Path(features_source)
@@ -19,11 +18,11 @@ def save_trx(features_source: Path, trx_dest: Path, timestamps: np.ndarray | Non
         else:
             raise FileExistsError(f"trx already exists: {trx_dest}")
 
-    head_index = 0
-    thorax_index = 1
-    abdomen_index = 2
-    left_wing_index = 3
-    right_wing_index = 4
+    head_index       = NODE_IDX_HEAD
+    thorax_index     = NODE_IDX_THORAX
+    abdomen_index    = NODE_IDX_ABDOMEN
+    left_wing_index  = NODE_IDX_L_WING
+    right_wing_index = NODE_IDX_R_WING
 
     fields = [
         "moviename",

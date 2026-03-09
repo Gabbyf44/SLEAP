@@ -1,7 +1,6 @@
 import numpy as np
 
-from preprocessing import fill_missing
-from features.kinematics import signed_angle
+from preprocessing import fill_missing, signed_angle
 
 def feature_nearest_neighbor(tracks, features=None, ctr_ind=1, **kwargs):
     """

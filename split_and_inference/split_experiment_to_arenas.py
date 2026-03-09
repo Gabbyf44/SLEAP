@@ -1,10 +1,12 @@
+import sys
 from tkfilebrowser import askopendirnames
 import tkinter as tk
 from pathlib import Path
 import shutil
 import re
 
-BASE_PATH = r"W:\Rotem\analysisData"
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from params import BASE_PATH
 
 def split_experiment_to_arenas(experiment_dir):
     """

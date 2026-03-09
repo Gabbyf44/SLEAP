@@ -5,8 +5,27 @@ from perframe.ds_utils import iter_datasets, safe_savemat
 from params import FPS, PXPERMM
 
 def _safe_eval_scale_expr(expr: str, fps: float, pxpermm: float) -> float:
-    expr = str(expr).strip().replace("^", "**")
-    return float(eval(expr, {"__builtins__": {}}, {"fps": float(fps), "pxpermm": float(pxpermm)}))
+    """Evaluate a scale expression using fps and pxpermm as variables.
+
+    Supported variables: fps, pxpermm.
+    Supports Python arithmetic operators; ^ is treated as ** (exponentiation).
+
+    Raises:
+        ValueError: if the expression cannot be evaluated, with the
+                    offending expression included in the message.
+    """
+    cleaned = str(expr).strip().replace("^", "**")
+    try:
+        return float(eval(
+            cleaned,
+            {"__builtins__": {}},
+            {"fps": float(fps), "pxpermm": float(pxpermm)},
+        ))
+    except Exception as e:
+        raise ValueError(
+            f"Failed to evaluate scale_expr '{expr}': {e}. "
+            f"Only 'fps' and 'pxpermm' are available as variables."
+        ) from e
 
 
 def _get_scale_from_ds(ds: h5py.Dataset, fps: float | None, pxpermm: float | None) -> float | None:

@@ -2,24 +2,42 @@ import numpy as np
 import pandas as pd
 
 
-def fill_missing(x, kind="nearest", **kwargs):
+def fill_missing(x, kind="nearest", warn_all_nan=False, **kwargs):
     """Fill missing values in a timeseries.
 
     Args:
         x: Timeseries of shape (time, _) or (_, time, _).
         kind: Type of interpolation to use. Defaults to "nearest".
+        warn_all_nan: If True, emit a warning when a column remains entirely
+            NaN after interpolation (i.e. it had no valid values to begin with).
+            Defaults to False to preserve existing behaviour in batch pipelines.
 
     Returns:
         Timeseries of the same shape as the input with NaNs filled in.
-
-    Notes:
-        This uses pandas.DataFrame.interpolate and accepts the same kwargs.
     """
     if x.ndim == 3:
-        return np.stack([fill_missing(xi, kind=kind, **kwargs) for xi in x], axis=0)
-    return (
-        pd.DataFrame(x).interpolate(kind=kind, axis=0, limit_direction="both", **kwargs).to_numpy()
+        return np.stack(
+            [fill_missing(xi, kind=kind, warn_all_nan=warn_all_nan, **kwargs) for xi in x],
+            axis=0,
+        )
+
+    result = (
+        pd.DataFrame(x)
+        .interpolate(kind=kind, axis=0, limit_direction="both", **kwargs)
+        .to_numpy()
     )
+
+    if warn_all_nan and np.isnan(result).all(axis=0).any():
+        import warnings
+        all_nan_cols = np.where(np.isnan(result).all(axis=0))[0]
+        warnings.warn(
+            f"fill_missing: {len(all_nan_cols)} column(s) are entirely NaN "
+            f"after interpolation (column indices: {all_nan_cols.tolist()}). "
+            f"These columns had no valid values to interpolate from.",
+            stacklevel=2,
+        )
+
+    return result
 
 
 def normalize_to_egocentric(x, rel_to=None, scale_factor=1, ctr_ind=1, fwd_ind=0, fill=True, return_angles=False):
@@ -88,3 +106,26 @@ def normalize_to_egocentric(x, rel_to=None, scale_factor=1, ctr_ind=1, fwd_ind=0
         return x, ang
     else:
         return x
+
+def signed_angle(a, b):
+    """Finds the signed angle between two 2D vectors a and b.
+
+    Args:
+        a: Array of shape (n, 2).
+        b: Array of shape (n, 2).
+
+    Returns:
+        The signed angles in degrees in vector of shape (n, 2).
+
+        This angle is positive if a is rotated clockwise to align to b and negative if
+        this rotation is counter-clockwise.
+    """
+    a = a / np.linalg.norm(a, axis=1, keepdims=True)
+    b = b / np.linalg.norm(b, axis=1, keepdims=True)
+    theta = np.arccos(np.around(np.sum(a * b, axis=1), decimals=4))
+    # cross = np.cross(a, b, axis=1)
+    cross = a[:, 0] * b[:, 1] - a[:, 1] * b[:, 0]
+    sign = np.zeros(cross.shape)
+    sign[cross >= 0] = -1
+    sign[cross < 0] = 1
+    return np.rad2deg(theta) * sign

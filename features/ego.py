@@ -9,7 +9,7 @@ def compute_ego_tracks(tracks, features=None, ctr_ind=1, fwd_ind=0, **kwargs):
         ego_tracks[..., fly] = normalize_to_egocentric(
             tracks[..., fly], ctr_ind=ctr_ind, fwd_ind=fwd_ind
         )
-    return ego_tracks
+    return {"ego_tracks": ego_tracks}
 
 def feature_ego_rel_nearest(tracks, features=None, ctr_ind=1, fwd_ind=0, **kwargs):
     """
@@ -43,4 +43,4 @@ def feature_ego_rel_nearest(tracks, features=None, ctr_ind=1, fwd_ind=0, **kwarg
         ego_i = normalize_to_egocentric(x, rel_to=rel_to, ctr_ind=ctr_ind, fwd_ind=fwd_ind)
         ego_rel_nearest[..., i] = ego_i
 
-    return ego_rel_nearest
+    return {"ego_rel_nearest": ego_rel_nearest}

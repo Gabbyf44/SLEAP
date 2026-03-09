@@ -5,7 +5,7 @@ from tkfilebrowser import askopendirnames
 from dataset import make_expt_dataset
 from perframe.create_perframe import export_perframe
 from perframe.trx_mat import save_trx
-from params import BASE_PATH
+from params import BASE_PATH, FPS, PXPERMM
 
 def main():
     """
@@ -53,27 +53,26 @@ def main():
 
         features_path = analysis_path.replace(".analysis.h5", ".features.h5")
 
+        # Stage 1: feature extraction
+        features_h5 = None
         try:
-            make_expt_dataset(
+            features_h5 = make_expt_dataset(
                 expt_folder,
                 h5_file=analysis_path,
                 output_path=features_path,
-                overwrite=True
+                overwrite=True,
+                fps=FPS,
+                pxpermm=PXPERMM,
             )
         except Exception as e:
-            print(f"\tERROR processing {expt_folder}: {e}")
+            print(f"\tERROR during feature extraction: {e}")
 
-        # Decide which features file exists
-        features_files = list(Path(expt_folder).glob("*.features.h5"))
-
-        if len(features_files) == 0:
-            print("\tNo features H5 found, skipping")
-            continue
-        elif len(features_files) > 1:
-            print("\tMultiple features H5 files found, skipping")
+        if features_h5 is None or not Path(features_h5).is_file():
+            print("\tSkipping export: no valid features file produced.")
             continue
 
-        features_h5 = features_files[0]
+        # Stage 2: perframe and trx export
+        features_h5 = Path(features_h5)
         perframe_dir = Path(expt_folder) / "perframe"
 
         try:
@@ -90,7 +89,7 @@ def main():
             save_trx(features_h5, trx_path, timestamps=None, overwrite=True)
 
         except Exception as e:
-            print(f"\tERROR processing {expt_folder}: {e}")
+            print(f"\tERROR during export: {e}")
 
     print("\nDone.")
 

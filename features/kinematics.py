@@ -1,29 +1,6 @@
 import numpy as np
 
-from preprocessing import fill_missing
-
-def signed_angle(a, b):
-    """Finds the signed angle between two 2D vectors a and b.
-
-    Args:
-        a: Array of shape (n, 2).
-        b: Array of shape (n, 2).
-
-    Returns:
-        The signed angles in degrees in vector of shape (n, 2).
-
-        This angle is positive if a is rotated clockwise to align to b and negative if
-        this rotation is counter-clockwise.
-    """
-    a = a / np.linalg.norm(a, axis=1, keepdims=True)
-    b = b / np.linalg.norm(b, axis=1, keepdims=True)
-    theta = np.arccos(np.around(np.sum(a * b, axis=1), decimals=4))
-    # cross = np.cross(a, b, axis=1)
-    cross = a[:, 0] * b[:, 1] - a[:, 1] * b[:, 0]
-    sign = np.zeros(cross.shape)
-    sign[cross >= 0] = -1
-    sign[cross < 0] = 1
-    return np.rad2deg(theta) * sign
+from preprocessing import fill_missing, signed_angle
 
 def compute_individual_kinematics(tracks, features=None, ctr_ind=1, fwd_ind=0, delt=1):
     """

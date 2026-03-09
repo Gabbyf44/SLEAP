@@ -19,27 +19,33 @@ def load_tracks(track_file):
         node_names = [x.decode() for x in node_names]
         track_names = f["track_names"][:]
 
-    # Crop to valid range.
-    last_fidx = np.argwhere(np.isfinite(tracks.reshape(len(tracks), -1)).any(axis=-1)).squeeze()[-1]
+    valid_frames = np.argwhere(
+        np.isfinite(tracks.reshape(len(tracks), -1)).any(axis=-1)
+    ).ravel()  # .ravel() is safe for empty, 1-element, and multi-element arrays
+
+    if len(valid_frames) == 0:
+        raise ValueError(
+            f"No valid (finite) frames found in '{track_file}'. "
+            f"The file may be empty or entirely NaN."
+        )
+
+    last_fidx = int(valid_frames[-1])
     tracks = tracks[:last_fidx]
 
     return tracks, node_names, track_names
 
 
-def encode_hdf5_strings(S):
-    """Encodes a list of strings for writing to a HDF5 file.
+def encode_hdf5_strings(S: list[str]) -> list[np.bytes_]:
+    """Encode a list of strings as numpy bytes for h5py compatibility.
+
+    h5py requires strings to be encoded as numpy bytes_ objects (not Python
+    str or bytes) when writing variable-length string datasets. Passing plain
+    Python strings causes a TypeError in some h5py versions.
 
     Args:
-        S: List of strings.
+        S: List of strings to encode.
 
     Returns:
-        List of numpy arrays that can be written to HDF5.
+        List of np.bytes_ objects suitable for h5py.create_dataset().
     """
     return [np.bytes_(x) for x in S]
-
-
-def units_for_key(key: str, registry) -> dict | None:
-    for spec in registry.values():
-        if key in spec.units:
-            return spec.units[key]
-    return None
