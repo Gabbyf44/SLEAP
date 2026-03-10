@@ -2,9 +2,9 @@ from typing import Callable, List, Dict, Literal
 from dataclasses import dataclass, field
 import numpy as np
 
-from params import NODE_IDX_ABDOMEN, NODE_IDX_L_WING, NODE_IDX_R_WING, PXPERMM, FPS
+from params import NODE_IDX_THORAX, NODE_IDX_ABDOMEN, NODE_IDX_L_WING, NODE_IDX_R_WING, PXPERMM, FPS
 
-from features.appearance import (compute_ab, compute_dab,
+from features.appearance import (compute_xy, compute_ab, compute_dab,
                                  compute_area, compute_darea,
                                  compute_ecc, compute_decc,
                                  compute_nose_tail)
@@ -14,7 +14,7 @@ from features.locomotion import (compute_theta, compute_dtheta, compute_absdthet
                                  compute_dv_ctr, compute_dv_tail,
                                  compute_du_cor, compute_du_ctr, compute_du_tail,
                                  compute_signdtheta, compute_flipdv_cor,
-                                 compute_velmag, compute_velmag_ctr, compute_velmag_tail, compute_velmag_nose)
+                                 compute_velmag_ctr, compute_velmag, compute_velmag_tail, compute_velmag_nose)
 
 from features.position import (compute_phi, compute_dphi,
                                compute_phisideways, compute_yaw, compute_absyaw)
@@ -22,7 +22,14 @@ from features.position import (compute_phi, compute_dphi,
 from features.social import (compute_dell2nose, compute_dnose2ell,
                              compute_anglesub, compute_danglesub,
                              compute_dcenter, compute_ddcenter,
-                             compute_dnose2tail)
+                             compute_dnose2tail,
+                             compute_absphidiff_anglesub, compute_absphidiff_nose2ell,
+                             compute_absthetadiff_anglesub, compute_absthetadiff_nose2ell,
+                             compute_anglefrom1to2_anglesub, compute_anglefrom1to2_nose2ell,
+                             compute_absanglefrom1to2_nose2ell,
+                             compute_magveldiff_anglesub, compute_magveldiff_nose2ell,
+                             compute_veltoward_anglesub, compute_veltoward_nose2ell,
+                             compute_nflies_close)
 
 
 @dataclass
@@ -123,6 +130,16 @@ def validate_registry(registry: Dict[str, FeatureSpec]) -> None:
 
 REGISTRY = {
     # Appearance features
+    "xy_mm": FeatureSpec(
+        func=compute_xy,
+        requires=[],
+        outputs=[],
+        intermediates=["x_mm", "y_mm"],
+        units={},
+        enabled=True,
+        save_mode="none",
+        params={"cte_ind": NODE_IDX_THORAX, "pxpermm": PXPERMM},
+    ),
     "body_scale": FeatureSpec(
         func=compute_ab,
         requires=[],
@@ -192,7 +209,7 @@ REGISTRY = {
     ),
     "nose_tail_mm": FeatureSpec(
         func=compute_nose_tail,
-        requires=["body_scale", "theta"],
+        requires=["body_scale", "theta", "xy_mm"],
         outputs=[],
         intermediates=["x_nose_mm", "nose_y_mm", "tail_x_mm", "tail_y_mm"],
         units={
@@ -242,7 +259,7 @@ REGISTRY = {
     ),
     "corfrac": FeatureSpec(
         func=compute_corfrac,
-        requires=["body_scale", "theta"],
+        requires=["body_scale", "theta", "xy_mm"],
         outputs=["corfrac_maj", "corfrac_min"],
         units={
             "corfrac_maj": {"quantity": "fractional_offset", "unit_raw": "unit", "unit_si": "unit", "scale_expr": "1"},
@@ -289,7 +306,7 @@ REGISTRY = {
     ),
     "du_ctr": FeatureSpec(
         func=compute_du_ctr,
-        requires=["theta"],
+        requires=["theta", "xy_mm"],
         outputs=["du_ctr"],
         units={
             "du_ctr": {"quantity": "forward_velocity_ctr", "unit_raw": "mm/sec", "unit_si": "mm/sec", "scale_expr": "1"},
@@ -300,7 +317,7 @@ REGISTRY = {
     ),
     "du_tail": FeatureSpec(
         func=compute_du_tail,
-        requires=["body_scale", "theta"],
+        requires=["body_scale", "theta", "xy_mm"],
         outputs=["du_tail"],
         units={
             "du_tail": {"quantity": "forward_velocity_tail", "unit_raw": "mm/sec", "unit_si": "mm/sec", "scale_expr": "1"},
@@ -311,7 +328,7 @@ REGISTRY = {
     ),
     "dv_ctr": FeatureSpec(
         func=compute_dv_ctr,
-        requires=["theta"],
+        requires=["theta", "xy_mm"],
         outputs=["dv_ctr"],
         units={
             "dv_ctr": {"quantity": "sideways_velocity_ctr", "unit_raw": "mm/sec", "unit_si": "mm/sec", "scale_expr": "1"},
@@ -322,7 +339,7 @@ REGISTRY = {
     ),
     "dv_tail": FeatureSpec(
         func=compute_dv_tail,
-        requires=["body_scale", "theta"],
+        requires=["body_scale", "theta", "dv_ctr"],
         outputs=["dv_tail"],
         units={
             "dv_tail": {"quantity": "sideways_velocity_tail", "unit_raw": "mm/sec", "unit_si": "mm/sec", "scale_expr": "1"},
@@ -352,6 +369,15 @@ REGISTRY = {
         enabled=True,
         save_mode="scalar",
     ),
+    "velmag_ctr": FeatureSpec(
+        func=compute_velmag_ctr,
+        requires=["theta", "xy_mm"],
+        outputs=["velmag_ctr"],
+        units={"velmag_ctr": {"quantity": "speed", "unit_raw": "mm/sec", "unit_si": "mm/sec", "scale_expr": "1"}},
+        enabled=True,
+        save_mode="scalar",
+        params={"fps": FPS, "pxpermm": PXPERMM},
+    ),
     "velmag": FeatureSpec(
         func=compute_velmag,
         requires=["corfrac", "body_scale", "theta", "velmag_ctr"],
@@ -361,18 +387,9 @@ REGISTRY = {
         save_mode="scalar",
         params={"fps": FPS, "pxpermm": PXPERMM},
     ),
-    "velmag_ctr": FeatureSpec(
-        func=compute_velmag_ctr,
-        requires=["theta"],
-        outputs=["velmag_ctr"],
-        units={"velmag_ctr": {"quantity": "speed", "unit_raw": "mm/sec", "unit_si": "mm/sec", "scale_expr": "1"}},
-        enabled=True,
-        save_mode="scalar",
-        params={"fps": FPS, "pxpermm": PXPERMM},
-    ),
     "velmag_nose": FeatureSpec(
         func=compute_velmag_nose,
-        requires=["body_scale", "theta"],
+        requires=["body_scale", "theta", "xy_mm"],
         outputs=["velmag_nose"],
         units={"velmag_nose": {"quantity": "speed", "unit_raw": "mm/sec", "unit_si": "mm/sec", "scale_expr": "1"}},
         enabled=True,
@@ -381,7 +398,7 @@ REGISTRY = {
     ),
     "velmag_tail": FeatureSpec(
         func=compute_velmag_tail,
-        requires=["body_scale", "theta"],
+        requires=["body_scale", "theta", "xy_mm"],
         outputs=["velmag_tail"],
         units={"velmag_tail": {"quantity": "speed", "unit_raw": "mm/sec", "unit_si": "mm/sec", "scale_expr": "1"}},
         enabled=True,
@@ -472,7 +489,7 @@ REGISTRY = {
     ),
     "anglesub": FeatureSpec(
         func=compute_anglesub,
-        requires=["body_scale", "theta"],
+        requires=["body_scale", "theta", "xy_mm"],
         outputs=["anglesub", "closestfly_anglesub"],
         units={
             "anglesub": {"quantity": "angle","unit_raw": "rad", "unit_si": "rad", "scale_expr": "1"},
@@ -495,7 +512,7 @@ REGISTRY = {
     ),
     "dcenter": FeatureSpec(
         func=compute_dcenter,
-        requires=[],
+        requires=["xy_mm"],
         outputs=["dcenter", "closestfly_center"],
         units={
             "dcenter": {"quantity": "distance", "unit_raw": "mm", "unit_si": "mm", "scale_expr": "1"},
@@ -528,7 +545,133 @@ REGISTRY = {
         save_mode="scalar",
         params={"pxpermm": PXPERMM},
     ),
-
+    "absphidiff_anglesub": FeatureSpec(
+        func=compute_absphidiff_anglesub,
+        requires=["phi", "anglesub"],
+        outputs=["absphidiff_anglesub"],
+        units={
+            "absphidiff_anglesub": {"quantity": "angle", "unit_raw": "rad", "unit_si": "rad", "scale_expr": "1",},
+        },
+        enabled=True,
+        save_mode="scalar",
+    ),
+    "absphidiff_nose2ell": FeatureSpec(
+        func=compute_absphidiff_nose2ell,
+        requires=["phi", "dnose2ell"],
+        outputs=["absphidiff_nose2ell"],
+        units={
+            "absphidiff_nose2ell": {"quantity": "angle", "unit_raw": "rad", "unit_si": "rad", "scale_expr": "1",},
+        },
+        enabled=True,
+        save_mode="scalar",
+    ),
+    "absthetadiff_anglesub": FeatureSpec(
+        func=compute_absthetadiff_anglesub,
+        requires=["theta", "anglesub"],
+        outputs=["absthetadiff_anglesub"],
+        units={
+            "absthetadiff_anglesub": {"quantity": "angle", "unit_raw": "rad", "unit_si": "rad", "scale_expr": "1",},
+        },
+        enabled=True,
+        save_mode="scalar",
+    ),
+    "absthetadiff_nose2ell": FeatureSpec(
+        func=compute_absthetadiff_nose2ell,
+        requires=["theta", "dnose2ell"],
+        outputs=["absthetadiff_nose2ell"],
+        units={
+            "absthetadiff_nose2ell": {"quantity": "angle", "unit_raw": "rad", "unit_si": "rad", "scale_expr": "1",},
+        },
+        enabled=True,
+        save_mode="scalar",
+    ),
+    "anglefrom1to2_anglesub": FeatureSpec(
+        func=compute_anglefrom1to2_anglesub,
+        requires=["theta", "nose_tail_mm", "anglesub", "xy_mm"],
+        outputs=["anglefrom1to2_anglesub"],
+        units={
+            "anglefrom1to2_anglesub": {"quantity": "angle", "unit_raw": "rad", "unit_si": "rad", "scale_expr": "1",},
+        },
+        enabled=True,
+        save_mode="scalar",
+        params={"pxpermm": PXPERMM},
+    ),
+    "anglefrom1to2_nose2ell": FeatureSpec(
+        func=compute_anglefrom1to2_nose2ell,
+        requires=["theta", "nose_tail_mm", "dnose2ell", "xy_mm"],
+        outputs=["anglefrom1to2_nose2ell"],
+        units={
+            "anglefrom1to2_nose2ell": {"quantity": "angle", "unit_raw": "rad", "unit_si": "rad", "scale_expr": "1",},
+        },
+        enabled=True,
+        save_mode="scalar",
+        params={"pxpermm": PXPERMM},
+    ),
+    "absanglefrom1to2_nose2ell": FeatureSpec(
+        func=compute_absanglefrom1to2_nose2ell,
+        requires=["anglefrom1to2_nose2ell"],
+        outputs=["absanglefrom1to2_nose2ell"],
+        units={
+            "absanglefrom1to2_nose2ell": {"quantity": "angle", "unit_raw": "rad", "unit_si": "rad", "scale_expr": "1",},
+        },
+        enabled=True,
+        save_mode="scalar",
+    ),
+    "magveldiff_anglesub": FeatureSpec(
+        func=compute_magveldiff_anglesub,
+        requires=["anglesub", "xy_mm"],
+        outputs=["magveldiff_anglesub"],
+        units={
+            "magveldiff_anglesub": {"quantity": "speed", "unit_raw": "mm/sec", "unit_si": "mm/sec", "scale_expr": "1",},
+        },
+        enabled=True,
+        save_mode="scalar",
+        params={"fps": FPS, "pxpermm": PXPERMM},
+    ),
+    "magveldiff_nose2ell": FeatureSpec(
+        func=compute_magveldiff_nose2ell,
+        requires=["dnose2ell", "xy_mm"],
+        outputs=["magveldiff_nose2ell"],
+        units={
+            "magveldiff_nose2ell": {"quantity": "speed", "unit_raw": "mm/sec", "unit_si": "mm/sec", "scale_expr": "1",},
+        },
+        enabled=True,
+        save_mode="scalar",
+        params={"fps": FPS, "pxpermm": PXPERMM},
+    ),
+    "veltoward_anglesub": FeatureSpec(
+        func=compute_veltoward_anglesub,
+        requires=["anglesub", "xy_mm"],
+        outputs=["veltoward_anglesub"],
+        units={
+            "veltoward_anglesub": {"quantity": "velocity", "unit_raw": "mm/sec", "unit_si": "mm/sec", "scale_expr": "1",},
+        },
+        enabled=True,
+        save_mode="scalar",
+        params={"fps": FPS, "pxpermm": PXPERMM},
+    ),
+    "veltoward_nose2ell": FeatureSpec(
+        func=compute_veltoward_nose2ell,
+        requires=["dnose2ell", "xy_mm"],
+        outputs=["veltoward_nose2ell"],
+        units={
+            "veltoward_nose2ell": {"quantity": "velocity", "unit_raw": "mm/sec", "unit_si": "mm/sec", "scale_expr": "1",},
+        },
+        enabled=True,
+        save_mode="scalar",
+        params={"fps": FPS, "pxpermm": PXPERMM},
+    ),
+    "nflies_close": FeatureSpec(
+        func=compute_nflies_close,
+        requires=["body_scale", "xy_mm"],
+        outputs=["nflies_close"],
+        units={
+            "nflies_close": {"quantity": "count", "unit_raw": "unit", "unit_si": "unit", "scale_expr": "1",},
+        },
+        enabled=True,
+        save_mode="scalar",
+        params={"pxpermm": PXPERMM, "nbodylengths_near": 2.0},
+    ),
 }
 
 # Validate registry consistency at import time.

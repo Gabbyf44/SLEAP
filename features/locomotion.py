@@ -139,8 +139,8 @@ def compute_corfrac(tracks, features=None, ctr_ind=1, pxpermm=10.5, **kwargs):
     Center-of-rotation fractional offset along major and minor body axes.
     Shape: (T, n_flies), row 0 is NaN (no prior frame).
     """
-    x_mm  = tracks[:, ctr_ind, 0, :] / float(pxpermm)   # px → mm
-    y_mm  = tracks[:, ctr_ind, 1, :] / float(pxpermm)
+    x_mm  = features["x_mm"]
+    y_mm  = features["y_mm"]
     a_mm  = features["a_mm"]
     b_mm  = features["b_mm"]
     theta = features["theta"]
@@ -168,8 +168,8 @@ def _cor_displacement(tracks, features, pxpermm, ctr_ind):
     Compute per-fly CoR displacement vectors for consecutive frame pairs.
     Returns dx_cor, dy_cor of shape (T-1, n_flies).
     """
-    x_mm  = tracks[:, ctr_ind, 0, :] / float(pxpermm)
-    y_mm  = tracks[:, ctr_ind, 1, :] / float(pxpermm)
+    x_mm  = features["x_mm"]
+    y_mm  = features["y_mm"]
     theta = features["theta"]
     a     = features["a_mm"]
     b     = features["b_mm"]
@@ -226,8 +226,8 @@ def _point_velocity(tracks, features, fps, pxpermm, ctr_ind, lateral, use_tail):
     lateral=False   → project onto theta        (forward)
     lateral=True    → project onto theta + pi/2 (sideways)
     """
-    x_mm = tracks[:, ctr_ind, 0, :] / float(pxpermm)
-    y_mm = tracks[:, ctr_ind, 1, :] / float(pxpermm)
+    x_mm  = features["x_mm"]
+    y_mm  = features["y_mm"]
     theta = features["theta"]
 
     if use_tail:
@@ -298,8 +298,8 @@ def _point_speed(tracks, features, fps, pxpermm, ctr_ind, use_nose=False, use_ta
     use_nose=True                  → nose  (centroid + 2a along +theta)
     use_tail=True                  → tail  (centroid + 2a along -theta)
     """
-    x_mm = tracks[:, ctr_ind, 0, :] / float(pxpermm)
-    y_mm = tracks[:, ctr_ind, 1, :] / float(pxpermm)
+    x_mm  = features["x_mm"]
+    y_mm  = features["y_mm"]
     theta = features["theta"]
 
     if use_nose or use_tail:

@@ -55,8 +55,8 @@ def _pairwise_nose_ell(tracks, features, pxpermm, ctr_ind):
     Shared setup for compute_dell2nose and compute_dnose2ell.
     Returns x_mm, y_mm, a_mm, b_mm, theta, nose_x, nose_y — all (T, n_flies).
     """
-    x_mm  = tracks[:, ctr_ind, 0, :] / float(pxpermm)
-    y_mm  = tracks[:, ctr_ind, 1, :] / float(pxpermm)
+    x_mm  = features["x_mm"]
+    y_mm  = features["y_mm"]
     a_mm  = features["a_mm"]
     b_mm  = features["b_mm"]
     theta = features["theta"]
@@ -267,8 +267,8 @@ def compute_anglesub(
 
     Closest fly is defined as the one subtending the LARGEST angle.
     """
-    x_mm  = tracks[:, ctr_ind, 0, :] / float(pxpermm)
-    y_mm  = tracks[:, ctr_ind, 1, :] / float(pxpermm)
+    x_mm  = features["x_mm"]
+    y_mm  = features["y_mm"]
     a_mm  = features["a_mm"]
     b_mm  = features["b_mm"]
     theta = features["theta"]
@@ -363,8 +363,8 @@ def _pairwise_min_dist(pt1_x, pt1_y, pt2_x, pt2_y):
 
 def compute_dcenter(tracks, features=None, ctr_ind=1, pxpermm=10.5, **kwargs):
     """Centroid-to-centroid distance to nearest other fly (mm)."""
-    x_mm = tracks[:, ctr_ind, 0, :] / float(pxpermm)
-    y_mm = tracks[:, ctr_ind, 1, :] / float(pxpermm)
+    x_mm  = features["x_mm"]
+    y_mm  = features["y_mm"]
     mind, closest = _pairwise_min_dist(x_mm, y_mm, x_mm, y_mm)
     return {
         "dcenter":           mind.astype(np.float64),
@@ -386,4 +386,342 @@ def compute_dnose2tail(tracks, features=None, **kwargs):
     return {
         "dnose2tail":           mind.astype(np.float64),
         "closestfly_nose2tail": closest.astype(np.float64),
+    }
+
+def _abs_angle_diff_to_closest(angle, closestfly):
+    """
+    Shared core for absphidiff_* and absthetadiff_* features.
+
+    For each fly i1 at each frame t, looks up the closest fly index,
+    reads its angle, and computes |modrange(angle2 - angle1, -pi, pi)|.
+
+    Parameters
+    ----------
+    angle       : (T, n_flies)  any circular angle in radians (phi or theta)
+    closestfly  : (T, n_flies)  0-based float index of closest fly, NaN if none
+
+    Returns
+    -------
+    out : (T, n_flies)  absolute angle difference in [0, pi], NaN where undefined
+    """
+    T, n_flies = angle.shape
+    out = np.full((T, n_flies), np.nan)
+
+    for i1 in range(n_flies):
+        cf = closestfly[:, i1]           # (T,) closest fly index, float with NaN
+        valid = np.isfinite(cf)          # frames where a closest fly exists
+        if not valid.any():
+            continue
+
+        idx = np.where(valid)[0]
+        i2s = cf[idx].astype(int)        # closest fly index per valid frame
+
+        angle1 = angle[idx, i1]
+        angle2 = angle[idx, i2s]         # vectorized: one index per frame
+
+        diff = angle2 - angle1
+        out[idx, i1] = np.abs(((diff + np.pi) % (2 * np.pi) - np.pi))
+
+    return out.astype(np.float64)
+
+
+def compute_absphidiff_anglesub(tracks, features=None, **kwargs):
+    """
+    Absolute velocity direction difference between focal fly and
+    the fly subtending the largest angle (closestfly_anglesub).
+    """
+    return {
+        "absphidiff_anglesub": _abs_angle_diff_to_closest(
+            features["phi"],
+            features["closestfly_anglesub"],
+        )
+    }
+
+
+def compute_absphidiff_nose2ell(tracks, features=None, **kwargs):
+    """
+    Absolute velocity direction difference between focal fly and
+    the nearest fly by nose-to-ellipse distance (closestfly_nose2ell).
+    """
+    return {
+        "absphidiff_nose2ell": _abs_angle_diff_to_closest(
+            features["phi"],
+            features["closestfly_nose2ell"],
+        )
+    }
+
+def compute_absthetadiff_anglesub(tracks, features=None, **kwargs):
+    """
+    Absolute body orientation difference between focal fly and
+    the fly subtending the largest angle (closestfly_anglesub).
+    """
+    return {
+        "absthetadiff_anglesub": _abs_angle_diff_to_closest(
+            features["theta"],
+            features["closestfly_anglesub"],
+        )
+    }
+
+
+def compute_absthetadiff_nose2ell(tracks, features=None, **kwargs):
+    """
+    Absolute body orientation difference between focal fly and
+    the nearest fly by nose-to-ellipse distance (closestfly_nose2ell).
+    """
+    return {
+        "absthetadiff_nose2ell": _abs_angle_diff_to_closest(
+            features["theta"],
+            features["closestfly_nose2ell"],
+        )
+    }
+
+def _anglefrom1to2(nose_x, nose_y, theta, x_mm, y_mm, closestfly):
+    """
+    Shared core for anglefrom1to2_* features.
+
+    Bearing from fly1's nose to fly2's centroid, in fly1's egocentric frame.
+    modrange(atan2(dy, dx) - theta1, -pi, pi)
+
+    Parameters
+    ----------
+    nose_x, nose_y : (T, n_flies)  fly nose positions (mm)
+    theta          : (T, n_flies)  fly heading (rad)
+    x_mm, y_mm     : (T, n_flies)  fly centroid positions (mm)
+    closestfly     : (T, n_flies)  0-based float index, NaN if none
+
+    Returns
+    -------
+    out : (T, n_flies)  bearing angle in [-pi, pi], NaN where undefined
+    """
+    T, n_flies = theta.shape
+    out = np.full((T, n_flies), np.nan)
+
+    for i1 in range(n_flies):
+        cf    = closestfly[:, i1]
+        valid = np.isfinite(cf)
+        if not valid.any():
+            continue
+
+        idx = np.where(valid)[0]
+        i2s = cf[idx].astype(int)
+
+        dx = x_mm[idx, i2s] - nose_x[idx, i1]
+        dy = y_mm[idx, i2s] - nose_y[idx, i1]
+
+        theta2 = np.arctan2(dy, dx)
+        diff   = theta2 - theta[idx, i1]
+        out[idx, i1] = (diff + np.pi) % (2 * np.pi) - np.pi
+
+    return out.astype(np.float64)
+
+
+def compute_anglefrom1to2_anglesub(tracks, features=None, ctr_ind=1, pxpermm=10.5, **kwargs):
+    """Bearing from fly1's nose to the closest fly (by anglesub) centroid, egocentric (rad)."""
+    x_mm  = features["x_mm"]
+    y_mm  = features["y_mm"]
+    return {
+        "anglefrom1to2_anglesub": _anglefrom1to2(
+            features["nose_x_mm"], features["nose_y_mm"],
+            features["theta"], x_mm, y_mm,
+            features["closestfly_anglesub"],
+        )
+    }
+
+
+def compute_anglefrom1to2_nose2ell(tracks, features=None, ctr_ind=1, pxpermm=10.5, **kwargs):
+    """Bearing from fly1's nose to the closest fly (by nose2ell) centroid, egocentric (rad)."""
+    x_mm  = features["x_mm"]
+    y_mm  = features["y_mm"]
+    return {
+        "anglefrom1to2_nose2ell": _anglefrom1to2(
+            features["nose_x_mm"], features["nose_y_mm"],
+            features["theta"], x_mm, y_mm,
+            features["closestfly_nose2ell"],
+        )
+    }
+
+def compute_absanglefrom1to2_nose2ell(tracks, features=None, **kwargs):
+    """Absolute bearing from fly1's nose to closest fly (by nose2ell), egocentric (rad)."""
+    return {
+        "absanglefrom1to2_nose2ell": np.abs(features["anglefrom1to2_nose2ell"]).astype(np.float64)
+    }
+
+def _magveldiff(x_mm, y_mm, closestfly, fps):
+    """
+    Shared core for magveldiff_* features.
+
+    Magnitude of velocity vector difference between fly1 and its closest fly.
+    ||(dx1,dy1) - (dx2,dy2)|| * fps  in mm/s.
+
+    Parameters
+    ----------
+    x_mm, y_mm  : (T, n_flies)  centroid positions in mm
+    closestfly  : (T, n_flies)  0-based float index, NaN if none
+    fps         : float
+
+    Returns
+    -------
+    out : (T, n_flies), NaN where undefined. Row 0 is NaN (no prior frame).
+    """
+    T, n_flies = x_mm.shape
+    out = np.full((T, n_flies), np.nan)
+
+    # Frame-to-frame displacement — (T-1, n_flies), aligned to frames 1..T-1
+    dx = np.diff(x_mm, axis=0)   # dx[t] = x[t+1] - x[t]
+    dy = np.diff(y_mm, axis=0)
+
+    for i1 in range(n_flies):
+        # closestfly is defined at each frame; use frames 0..T-2
+        cf    = closestfly[:-1, i1]
+        valid = np.isfinite(cf)
+        if not valid.any():
+            continue
+
+        idx = np.where(valid)[0]     # indices into 0..T-2
+        i2s = cf[idx].astype(int)
+
+        # fly1 velocity at interval idx→idx+1
+        vx1 = dx[idx, i1]
+        vy1 = dy[idx, i1]
+
+        # fly2 velocity at same interval
+        vx2 = dx[idx, i2s]
+        vy2 = dy[idx, i2s]
+
+        # magnitude of difference, scaled to mm/s
+        # store at idx+1 to match NaN-prepend convention (frame 0 = NaN)
+        out[idx + 1, i1] = np.sqrt((vx1 - vx2) ** 2 + (vy1 - vy2) ** 2) * fps
+
+    return out.astype(np.float64)
+
+
+def compute_magveldiff_anglesub(tracks, features=None, ctr_ind=1, fps=30, pxpermm=10.5, **kwargs):
+    """Velocity difference magnitude vs closest fly by anglesub (mm/s)."""
+    x_mm  = features["x_mm"]
+    y_mm  = features["y_mm"]
+    return {
+        "magveldiff_anglesub": _magveldiff(
+            x_mm, y_mm, features["closestfly_anglesub"], fps
+        )
+    }
+
+
+def compute_magveldiff_nose2ell(tracks, features=None, ctr_ind=1, fps=30, pxpermm=10.5, **kwargs):
+    """Velocity difference magnitude vs closest fly by nose2ell (mm/s)."""
+    x_mm  = features["x_mm"]
+    y_mm  = features["y_mm"]
+    return {
+        "magveldiff_nose2ell": _magveldiff(
+            x_mm, y_mm, features["closestfly_nose2ell"], fps
+        )
+    }
+
+def _veltoward(x_mm, y_mm, closestfly, fps):
+    """
+    Shared core for veltoward_* features.
+
+    Signed velocity of fly1 in the direction of its closest fly (mm/s).
+    Positive = moving toward, negative = moving away.
+
+    Parameters
+    ----------
+    x_mm, y_mm  : (T, n_flies)  centroid positions in mm
+    closestfly  : (T, n_flies)  0-based float index, NaN if none
+    fps         : float
+
+    Returns
+    -------
+    out : (T, n_flies), NaN where undefined. Row 0 is NaN.
+    """
+    T, n_flies = x_mm.shape
+    out = np.full((T, n_flies), np.nan)
+
+    dx = np.diff(x_mm, axis=0)   # (T-1, n_flies) — fly1 velocity
+    dy = np.diff(y_mm, axis=0)
+
+    for i1 in range(n_flies):
+        cf    = closestfly[:-1, i1]      # evaluate at frames 0..T-2
+        valid = np.isfinite(cf)
+        if not valid.any():
+            continue
+
+        idx = np.where(valid)[0]         # into 0..T-2
+        i2s = cf[idx].astype(int)
+
+        # Unit vector from fly1 to fly2 at frame idx
+        dx2 = x_mm[idx, i2s] - x_mm[idx, i1]
+        dy2 = y_mm[idx, i2s] - y_mm[idx, i1]
+        dz2 = np.sqrt(dx2 ** 2 + dy2 ** 2)
+
+        # Normalize — zero distance → zero unit vector (flies on top of each other)
+        safe = dz2 > 0
+        ux = np.where(safe, dx2 / np.where(safe, dz2, 1.0), 0.0)
+        uy = np.where(safe, dy2 / np.where(safe, dz2, 1.0), 0.0)
+
+        # Project fly1 velocity onto unit vector, scale to mm/s
+        out[idx + 1, i1] = (dx[idx, i1] * ux + dy[idx, i1] * uy) * fps
+
+    return out.astype(np.float64)
+
+
+def compute_veltoward_anglesub(tracks, features=None, ctr_ind=1, fps=30, pxpermm=10.5, **kwargs):
+    """Signed velocity toward the closest fly by anglesub (mm/s)."""
+    x_mm  = features["x_mm"]
+    y_mm  = features["y_mm"]
+    return {
+        "veltoward_anglesub": _veltoward(
+            x_mm, y_mm, features["closestfly_anglesub"], fps
+        )
+    }
+
+
+def compute_veltoward_nose2ell(tracks, features=None, ctr_ind=1, fps=30, pxpermm=10.5, **kwargs):
+    """Signed velocity toward the closest fly by nose2ell (mm/s)."""
+    x_mm  = features["x_mm"]
+    y_mm  = features["y_mm"]
+    return {
+        "veltoward_nose2ell": _veltoward(
+            x_mm, y_mm, features["closestfly_nose2ell"], fps
+        )
+    }
+
+def compute_nflies_close(
+    tracks, features=None, ctr_ind=1, pxpermm=10.5,
+    nbodylengths_near=2.0, **kwargs
+):
+    """
+    Number of other flies within nbodylengths_near body lengths of each fly.
+    "Close" = centroid distance <= nbodylengths_near * 4 * a_mm(fly1),
+    where 4*a_mm is the full body length (2 * major axis).
+    """
+    x_mm  = features["x_mm"]
+    y_mm  = features["y_mm"]
+    a_mm = features["a_mm"]
+    T, n_flies = x_mm.shape
+
+    nflies_close = np.zeros((T, n_flies), dtype=np.float64)
+
+    for i1 in range(n_flies):
+        for i2 in range(n_flies):
+            if i1 == i2:
+                continue
+
+            valid = np.isfinite(x_mm[:, i1]) & np.isfinite(x_mm[:, i2])
+            if not valid.any():
+                continue
+
+            dx = x_mm[:, i2] - x_mm[:, i1]
+            dy = y_mm[:, i2] - y_mm[:, i1]
+
+            # Normalize by fly1's full body length (4 * a_mm)
+            body_length = 4.0 * a_mm[:, i1]
+            normalized_dist = np.sqrt(dx ** 2 + dy ** 2) / np.where(
+                body_length > 0, body_length, np.inf
+            )
+
+            isclose = valid & (normalized_dist <= nbodylengths_near)
+            nflies_close[isclose, i1] += 1.0
+
+    return {
+        "nflies_close": nflies_close.astype(np.float64)
     }

@@ -1,5 +1,14 @@
 import numpy as np
 
+def compute_xy(tracks, features=None, ctr_ind=1, fwd_ind=0, pxpermm=10.5, **kwargs):
+    x = tracks[:, ctr_ind, 0, :] / float(pxpermm)
+    y = tracks[:, ctr_ind, 1, :] / float(pxpermm)
+
+    return {
+        "x_mm": x.astype(np.float64),
+        "y_mm": y.astype(np.float64),
+    }
+
 # a: Quarter major axis length, b: Quarter minor axis length
 def compute_ab(tracks, features=None, ctr_ind=1, fwd_ind=0, abdomen_idx = 2, leftW_idx=3, rightW_idx=4, pxpermm=10.5, **kwargs):
     a = (np.sqrt(np.sum((tracks[:,fwd_ind,:,:] - tracks[:,abdomen_idx,:,:])**2, axis=1)) / 4).astype(np.float64)
@@ -70,8 +79,8 @@ def compute_nose_tail(tracks, features=None, ctr_ind=1, pxpermm=10.5, **kwargs):
     Nose = centroid + 2*a along forward heading (theta).
     Tail = centroid + 2*a along backward heading (-theta).
     """
-    x_mm  = tracks[:, ctr_ind, 0, :] / float(pxpermm)
-    y_mm  = tracks[:, ctr_ind, 1, :] / float(pxpermm)
+    x_mm  = features["x_mm"]
+    y_mm  = features["y_mm"]
     a_mm  = features["a_mm"]
     theta = features["theta"]
 
