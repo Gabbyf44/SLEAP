@@ -2,6 +2,8 @@ import tkinter as tk
 from pathlib import Path
 from tkfilebrowser import askopendirnames
 
+import traceback
+
 from dataset import make_expt_dataset
 from perframe.create_perframe import export_perframe
 from perframe.trx_mat import save_trx
@@ -64,8 +66,11 @@ def main():
                 fps=FPS,
                 pxpermm=PXPERMM,
             )
+        # except Exception as e:
+        #     print(f"\tERROR during feature extraction: {e}")
         except Exception as e:
             print(f"\tERROR during feature extraction: {e}")
+            traceback.print_exc()
 
         if features_h5 is None or not Path(features_h5).is_file():
             print("\tSkipping export: no valid features file produced.")

@@ -227,6 +227,8 @@ class FeatureSpec:
     enabled:       bool = True      # False = skip this feature entirely
     save_mode:     str  = "scalar"  # "scalar" | "pose_per_fly" | "none"
     intermediates: list[str] = []   # intermediate keys produced (documented, not saved)
+    params:        dict = {}        # feature-specific config kwargs passed to func
+
 ```
 ---
 ## Output Saving Behavior
@@ -407,6 +409,30 @@ list them in `intermediates` and set `save_mode="none"`:
 
 Listing keys in `intermediates` does not change runtime behavior — it is a documented
 contract validated at import time for duplicates and key collisions.
+
+#### Per-feature configuration with `params`
+
+If your feature has tunable parameters, declare them in `params` rather than
+hardcoding defaults:
+
+```python
+"my_feature": FeatureSpec(
+    func=feature_my_feature,
+    requires=[],
+    outputs=["my_key"],
+    units={...},
+    params={"window": 5, "threshold": 0.1},
+),
+```
+
+Values in `params` are merged into `**kwargs` when the function is called. Declare
+them explicitly in the function signature (with matching defaults as fallback):
+
+```python
+def feature_my_feature(tracks, features=None, window=5, threshold=0.1, **kwargs):
+    ...
+```
+
 ---
 
 ### Step 3 — That's it

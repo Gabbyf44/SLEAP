@@ -137,6 +137,7 @@ def save_trx(features_source: Path, trx_dest: Path, timestamps: np.ndarray | Non
                                             "id": int(i + 1),
                                             "label": label_name,
                                             "firstframe": 1.0,
+                                            "firstframe": 1.0,
                                             "off": 0.0,
                                             "nframes": float(nframes),
                                             "endframe": float(nframes),

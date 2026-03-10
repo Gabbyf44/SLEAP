@@ -1,19 +1,29 @@
+from typing import Callable, List, Dict, Literal
 from dataclasses import dataclass, field
-from typing import Callable, List, Dict, Optional, Literal
 import numpy as np
 
-from features.ego import compute_ego_tracks, feature_ego_rel_nearest
-from features.wings import feature_wingLR, feature_minmax_wing_angle, feature_wing_arc_to_nearest
-from features.kinematics import compute_individual_kinematics
-from features.pairwise import (
-    feature_nearest_neighbor,
-    feature_nearest_geom,
-    feature_FV_to_nearest,
-    feature_relFV_to_nearest,
-    feature_LS_to_nearest,
-    feature_relLS_to_nearest,
-    feature_ang_to_nearest
-)
+from params import NODE_IDX_ABDOMEN, NODE_IDX_L_WING, NODE_IDX_R_WING, PXPERMM, FPS
+
+from features.appearance import (compute_ab, compute_dab,
+                                 compute_area, compute_darea,
+                                 compute_ecc, compute_decc,
+                                 compute_nose_tail)
+
+from features.locomotion import (compute_theta, compute_dtheta, compute_absdtheta,
+                                 compute_corfrac, compute_dv_cor, compute_absdv_cor,
+                                 compute_dv_ctr, compute_dv_tail,
+                                 compute_du_cor, compute_du_ctr, compute_du_tail,
+                                 compute_signdtheta, compute_flipdv_cor,
+                                 compute_velmag, compute_velmag_ctr, compute_velmag_tail, compute_velmag_nose)
+
+from features.position import (compute_phi, compute_dphi,
+                               compute_phisideways, compute_yaw, compute_absyaw)
+
+from features.social import (compute_dell2nose, compute_dnose2ell,
+                             compute_anglesub, compute_danglesub,
+                             compute_dcenter, compute_ddcenter,
+                             compute_dnose2tail)
+
 
 @dataclass
 class FeatureSpec:
@@ -31,6 +41,9 @@ class FeatureSpec:
     intermediates: List[str] = field(default_factory=list)
     # Keys returned by the function that are available in `computed` for
     # downstream features but are NOT written to HDF5.
+    params: Dict[str, object] = field(default_factory=dict)
+    # Feature-specific configuration parameters passed as kwargs to func.
+    # Values here override the function's own defaults.
 
 def validate_registry(registry: Dict[str, FeatureSpec]) -> None:
     errors = []
@@ -109,180 +122,413 @@ def validate_registry(registry: Dict[str, FeatureSpec]) -> None:
 
 
 REGISTRY = {
-    "ego_tracks": FeatureSpec(
-        func=compute_ego_tracks,
+    # Appearance features
+    "body_scale": FeatureSpec(
+        func=compute_ab,
         requires=[],
-        outputs=["ego_tracks"],
-        units={},
-        enabled=True,
-        save_mode="pose_per_fly",
-    ),
-    "kinematics": FeatureSpec(
-        func=compute_individual_kinematics,
-        requires=[],
-        outputs=["FV","FA","LV","LA","LS","RS"],
-        units={
-            "FV": {
-                "quantity": "velocity",
-                "unit_raw": "px/frame",
-                "unit_si": "mm/sec",
-                "scale_expr": "fps/pxpermm",
-            },
-            "FA": {
-                "quantity": "acceleration",
-                "unit_raw": "px/frame^2",
-                "unit_si": "mm/sec^2",
-                "scale_expr": "fps^2/pxpermm",
-            },
-            "LV": {
-                "quantity": "velocity",
-                "unit_raw": "px/frame",
-                "unit_si": "mm/sec",
-                "scale_expr": "fps/pxpermm",
-            },
-            "LA": {
-                "quantity": "acceleration",
-                "unit_raw": "px/frame^2",
-                "unit_si": "mm/sec^2",
-                "scale_expr": "fps^2/pxpermm",
-            },
-            "LS": {
-                "quantity": "velocity",
-                "unit_raw": "px/frame",
-                "unit_si": "mm/sec",
-                "scale_expr": "fps/pxpermm",
-            },
-            "RS": {
-                "quantity": "rot_speed",
-                "unit_raw": "deg/frame",
-                "unit_si": "deg/sec",
-                "scale_expr": "fps",
-            },
-        },
-        enabled=True,
-        save_mode="scalar"
-    ),
-    "wing": FeatureSpec(
-        func=feature_wingLR,
-        requires=["ego_tracks"],
-        outputs=["wingL","wingR"],
-        units={
-            "wingL": {"quantity": "angle", "unit_raw": "deg", "unit_si": "deg", "scale_expr": "1"},
-            "wingR": {"quantity": "angle", "unit_raw": "deg", "unit_si": "deg", "scale_expr": "1"},
-        },
-        enabled=True,
-        save_mode="scalar"
-    ),
-    "wing_minmax": FeatureSpec(
-        func=feature_minmax_wing_angle,
-        requires=["wing"],
-        outputs=["minWingAng","maxWingAng","wingAmp"],
-        units={
-            "minWingAng": {"quantity": "angle", "unit_raw": "deg", "unit_si": "deg", "scale_expr": "1"},
-            "maxWingAng": {"quantity": "angle", "unit_raw": "deg", "unit_si": "deg", "scale_expr": "1"},
-            "wingAmp": {"quantity": "angle", "unit_raw": "deg", "unit_si": "deg", "scale_expr": "1"},
-        },
-        enabled=True,
-        save_mode="scalar"
-    ),
-    "nearest_neighbor": FeatureSpec(
-        func=feature_nearest_neighbor,
-        requires=[],
-        outputs=["minDist"],
-        intermediates=["nearestFlyIdx"],
-        units={
-            "minDist": {"quantity": "distance", "unit_raw": "px", "unit_si": "mm", "scale_expr": "1/pxpermm"},
-            "nearestFlyIdx": {"quantity": "index", "unit_raw": "unitless", "unit_si": "unitless", "scale_expr": "1"},
-        },
-        enabled=True,
-        save_mode="scalar"
-    ),
-    "nearest_geom": FeatureSpec(
-        func=feature_nearest_geom,
-        requires=["nearest_neighbor"],
         outputs=[],
-        intermediates=[
-            "thx_xy", "hd_xy", "thx_v",
-            "nearest_dir_unit", "nearest_dir_perp",
-            "nearest_dist", "nearest_valid",
-        ],
+        intermediates=["a_mm", "b_mm"],
         units={},
         enabled=True,
         save_mode="none",
+        params={"abdomen_idx": NODE_IDX_ABDOMEN,
+                "leftW_idx": NODE_IDX_L_WING,
+                "rightW_idx": NODE_IDX_R_WING,
+                "pxpermm": PXPERMM},
     ),
-    "ego_rel_nearest": FeatureSpec(
-        func=feature_ego_rel_nearest,
-        requires=["nearest_neighbor"],
-        outputs=["ego_rel_nearest"],
-        units={},
-        enabled=True,
-        save_mode="pose_per_fly",
-    ),
-    "fv_to_nearest": FeatureSpec(
-        func=feature_FV_to_nearest,  # uses thx_v + nearest_dir_unit
-        requires=["nearest_geom"],
-        outputs=["FV_to_nearest"],
+    "dab": FeatureSpec(
+        func=compute_dab,
+        requires=["body_scale"],
+        outputs=["da", "db"],
         units={
-            "FV_to_nearest": {"quantity": "velocity", "unit_raw": "px/frame", "unit_si": "mm/sec",
-                              "scale_expr": "fps/pxpermm"},
+            "da": {"quantity": "a_change_rate", "unit_raw": "mm/sec", "unit_si": "mm/sec", "scale_expr": "1"},
+            "db": {"quantity": "b_change_rate", "unit_raw": "mm/sec", "unit_si": "mm/sec", "scale_expr": "1"},
+        },
+        enabled=True,
+        save_mode="scalar",
+        params={"fps": FPS}
+    ),
+    "area": FeatureSpec(
+        func=compute_area,
+        requires=["body_scale"],
+        outputs=["area"],
+        units={
+            "area": {"quantity": "area", "unit_raw": "mm^2", "unit_si": "mm^2", "scale_expr": "1"},
         },
         enabled=True,
         save_mode="scalar"
     ),
-    "relfv_to_nearest": FeatureSpec(
-        func=feature_relFV_to_nearest,  # uses thx_v + nearestFlyIdx + nearest_valid
-        requires=["nearest_geom"],
-        outputs=["relFV_to_nearest"],
+    "darea": FeatureSpec(
+        func=compute_darea,
+        requires=["area"],
+        outputs=["darea"],
         units={
-            "relFV_to_nearest": {"quantity": "velocity", "unit_raw": "px/frame", "unit_si": "mm/sec",
-                                 "scale_expr": "fps/pxpermm"},
+            "darea": {"quantity": "area_change_rate", "unit_raw": "mm^2/sec", "unit_si": "mm^2/sec", "scale_expr": "1" },
+        },
+        enabled=True,
+        save_mode="scalar",
+        params={"fps": FPS}
+    ),
+    "eccentricity": FeatureSpec(
+        func=compute_ecc,
+        requires=["body_scale"],
+        outputs=["ecc"],
+        units={
+            "ecc": {"quantity": "eccentricity", "unit_raw": "unit", "unit_si": "unit", "scale_expr": "1"},
         },
         enabled=True,
         save_mode="scalar"
     ),
-    "ls_to_nearest": FeatureSpec(
-        func=feature_LS_to_nearest,
-        requires=["nearest_geom"],
-        outputs=["LS_to_nearest"],
+    "deccentricity": FeatureSpec(
+        func=compute_decc,
+        requires=["eccentricity"],
+        outputs=["decc"],
         units={
-            "LS_to_nearest": {"quantity": "velocity", "unit_raw": "px/frame", "unit_si": "mm/sec",
-                              "scale_expr": "fps/pxpermm"},
+            "decc": {"quantity": "eccentricity_change_rate", "unit_raw": "unit/sec", "unit_si": "unit/sec", "scale_expr": "1"},
         },
         enabled=True,
-        save_mode="scalar"
+        save_mode="scalar",
+        params={"fps": FPS}
     ),
-    "relLS_to_nearest": FeatureSpec(
-        func=feature_relLS_to_nearest,
-        requires=["nearest_geom"],
-        outputs=["relLS_to_nearest"],
+    "nose_tail_mm": FeatureSpec(
+        func=compute_nose_tail,
+        requires=["body_scale", "theta"],
+        outputs=[],
+        intermediates=["x_nose_mm", "nose_y_mm", "tail_x_mm", "tail_y_mm"],
         units={
-            "relLS_to_nearest": {"quantity": "velocity", "unit_raw": "px/frame", "unit_si": "mm/sec",
-                                 "scale_expr": "fps/pxpermm"},
+            "nose_x_mm": {"quantity": "position", "unit_raw": "mm", "unit_si": "mm", "scale_expr": "1"},
+            "nose_y_mm": {"quantity": "position", "unit_raw": "mm", "unit_si": "mm", "scale_expr": "1"},
+            "tail_x_mm": {"quantity": "position", "unit_raw": "mm", "unit_si": "mm", "scale_expr": "1"},
+            "tail_y_mm": {"quantity": "position", "unit_raw": "mm", "unit_si": "mm", "scale_expr": "1"},
         },
         enabled=True,
-        save_mode="scalar"
+        save_mode="none",
+        params={"pxpermm": PXPERMM},
     ),
-    "wing_arc_to_nearest": FeatureSpec(
-        func=feature_wing_arc_to_nearest,
-        requires=["nearest_neighbor"],
-        outputs=["arcThetaL_to_nearest", "arcThetaR_to_nearest"],
+
+
+    # Locomotion features
+    "theta": FeatureSpec(
+        func=compute_theta,
+        requires=[],
+        outputs=[],
+        intermediates=["theta"],
         units={
-            "arcThetaL_to_nearest": {"quantity": "angle", "unit_raw": "deg", "unit_si": "deg", "scale_expr": "1"},
-            "arcThetaR_to_nearest": {"quantity": "angle", "unit_raw": "deg", "unit_si": "deg", "scale_expr": "1"},
+            "theta": {"quantity": "orientation", "unit_raw": "rad", "unit_si": "rad", "scale_expr": "1"},
         },
         enabled=True,
-        save_mode="scalar"
+        save_mode="none",
     ),
-    "ang_to_nearest": FeatureSpec(
-        func=feature_ang_to_nearest,
-        requires=["nearest_geom"],
-        outputs=["ang_to_nearest"],
+    "dtheta": FeatureSpec(
+        func=compute_dtheta,
+        requires=["theta"],
+        outputs=["dtheta"],
         units={
-            "ang_to_nearest": {"quantity":"angle","unit_raw":"deg","unit_si":"deg","scale_expr":"1"},
+            "dtheta": {"quantity": "angular_velocity", "unit_raw": "rad/sec", "unit_si": "rad/sec", "scale_expr": "1"},
         },
         enabled=True,
-        save_mode="scalar"
+        save_mode="scalar",
+        params={"fps": FPS}
     ),
+    "absdtheta": FeatureSpec(
+        func=compute_absdtheta,
+        requires=["dtheta"],
+        outputs=["absdtheta"],
+        units={
+            "absdtheta": {"quantity": "angular_speed", "unit_raw": "rad/sec", "unit_si": "rad/sec", "scale_expr": "1"},
+        },
+        enabled=True,
+        save_mode="scalar",
+    ),
+    "corfrac": FeatureSpec(
+        func=compute_corfrac,
+        requires=["body_scale", "theta"],
+        outputs=["corfrac_maj", "corfrac_min"],
+        units={
+            "corfrac_maj": {"quantity": "fractional_offset", "unit_raw": "unit", "unit_si": "unit", "scale_expr": "1"},
+            "corfrac_min": {"quantity": "fractional_offset", "unit_raw": "unit", "unit_si": "unit", "scale_expr": "1"},
+        },
+        enabled=True,
+        save_mode="scalar",
+        params={"pxpermm": PXPERMM},
+    ),
+    "dv_cor": FeatureSpec(
+        func=compute_dv_cor,
+        requires=["corfrac", "body_scale", "theta"],
+        outputs=["dv_cor"],
+        units={
+            "dv_cor": {"quantity": "lateral_velocity_cor", "unit_raw": "mm/sec", "unit_si": "mm/sec",
+                       "scale_expr": "1"},
+        },
+        enabled=True,
+        save_mode="scalar",
+        params={"fps": FPS, "pxpermm": PXPERMM},
+    ),
+    "absdv_cor": FeatureSpec(
+        func=compute_absdv_cor,
+        requires=["dv_cor"],
+        outputs=["absdv_cor"],
+        units={
+            "absdv_cor": {
+                "quantity": "lateral_speed_cor", "unit_raw": "mm/sec", "unit_si": "mm/sec", "scale_expr": "1",
+            },
+        },
+        enabled=True,
+        save_mode="scalar",
+    ),
+    "du_cor": FeatureSpec(
+        func=compute_du_cor,
+        requires=["corfrac", "body_scale", "theta"],
+        outputs=["du_cor"],
+        units={
+            "du_cor": {"quantity": "forward_velocity_cor", "unit_raw": "mm/sec", "unit_si": "mm/sec", "scale_expr": "1"},
+        },
+        enabled=True,
+        save_mode="scalar",
+        params={"fps": FPS, "pxpermm": PXPERMM},
+    ),
+    "du_ctr": FeatureSpec(
+        func=compute_du_ctr,
+        requires=["theta"],
+        outputs=["du_ctr"],
+        units={
+            "du_ctr": {"quantity": "forward_velocity_ctr", "unit_raw": "mm/sec", "unit_si": "mm/sec", "scale_expr": "1"},
+        },
+        enabled=True,
+        save_mode="scalar",
+        params={"fps": FPS, "pxpermm": PXPERMM},
+    ),
+    "du_tail": FeatureSpec(
+        func=compute_du_tail,
+        requires=["body_scale", "theta"],
+        outputs=["du_tail"],
+        units={
+            "du_tail": {"quantity": "forward_velocity_tail", "unit_raw": "mm/sec", "unit_si": "mm/sec", "scale_expr": "1"},
+        },
+        enabled=True,
+        save_mode="scalar",
+        params={"fps": FPS, "pxpermm": PXPERMM},
+    ),
+    "dv_ctr": FeatureSpec(
+        func=compute_dv_ctr,
+        requires=["theta"],
+        outputs=["dv_ctr"],
+        units={
+            "dv_ctr": {"quantity": "sideways_velocity_ctr", "unit_raw": "mm/sec", "unit_si": "mm/sec", "scale_expr": "1"},
+        },
+        enabled=True,
+        save_mode="scalar",
+        params={"fps": FPS, "pxpermm": PXPERMM},
+    ),
+    "dv_tail": FeatureSpec(
+        func=compute_dv_tail,
+        requires=["body_scale", "theta"],
+        outputs=["dv_tail"],
+        units={
+            "dv_tail": {"quantity": "sideways_velocity_tail", "unit_raw": "mm/sec", "unit_si": "mm/sec", "scale_expr": "1"},
+        },
+        enabled=True,
+        save_mode="scalar",
+        params={"fps": FPS, "pxpermm": PXPERMM},
+    ),
+    "signdtheta": FeatureSpec(
+        func=compute_signdtheta,
+        requires=["dtheta"],
+        outputs=[],
+        intermediates=["signdtheta"],
+        units={
+            "signdtheta": {"quantity": "turn_sign", "unit_raw": "unit", "unit_si": "unit", "scale_expr": "1"},
+        },
+        enabled=True,
+        save_mode="none",
+    ),
+    "flipdv_cor": FeatureSpec(
+        func=compute_flipdv_cor,
+        requires=["dv_cor", "signdtheta"],
+        outputs=["flipdv_cor"],
+        units={
+            "flipdv_cor": {"quantity": "signed_lateral_velocity_cor", "unit_raw": "mm/sec", "unit_si": "mm/sec", "scale_expr": "1"},
+        },
+        enabled=True,
+        save_mode="scalar",
+    ),
+    "velmag": FeatureSpec(
+        func=compute_velmag,
+        requires=["corfrac", "body_scale", "theta", "velmag_ctr"],
+        outputs=["velmag"],
+        units={"velmag": {"quantity": "speed", "unit_raw": "mm/sec", "unit_si": "mm/sec", "scale_expr": "1"}},
+        enabled=True,
+        save_mode="scalar",
+        params={"fps": FPS, "pxpermm": PXPERMM},
+    ),
+    "velmag_ctr": FeatureSpec(
+        func=compute_velmag_ctr,
+        requires=["theta"],
+        outputs=["velmag_ctr"],
+        units={"velmag_ctr": {"quantity": "speed", "unit_raw": "mm/sec", "unit_si": "mm/sec", "scale_expr": "1"}},
+        enabled=True,
+        save_mode="scalar",
+        params={"fps": FPS, "pxpermm": PXPERMM},
+    ),
+    "velmag_nose": FeatureSpec(
+        func=compute_velmag_nose,
+        requires=["body_scale", "theta"],
+        outputs=["velmag_nose"],
+        units={"velmag_nose": {"quantity": "speed", "unit_raw": "mm/sec", "unit_si": "mm/sec", "scale_expr": "1"}},
+        enabled=True,
+        save_mode="scalar",
+        params={"fps": FPS, "pxpermm": PXPERMM},
+    ),
+    "velmag_tail": FeatureSpec(
+        func=compute_velmag_tail,
+        requires=["body_scale", "theta"],
+        outputs=["velmag_tail"],
+        units={"velmag_tail": {"quantity": "speed", "unit_raw": "mm/sec", "unit_si": "mm/sec", "scale_expr": "1"}},
+        enabled=True,
+        save_mode="scalar",
+        params={"fps": FPS, "pxpermm": PXPERMM},
+    ),
+
+
+    # Position features
+    "phi": FeatureSpec(
+        func=compute_phi,
+        requires=[],
+        outputs=["phi"],
+        units={
+            "phi": {"quantity": "velocity_direction", "unit_raw": "rad", "unit_si": "rad", "scale_expr": "1"},
+        },
+        enabled=True,
+        save_mode="scalar",
+    ),
+    "dphi": FeatureSpec(
+        func=compute_dphi,
+        requires=["phi"],
+        outputs=["dphi"],
+        units={
+            "dphi": {"quantity": "velocity_direction_change_rate", "unit_raw": "rad/sec", "unit_si": "rad/sec", "scale_expr": "1"},
+        },
+        enabled=True,
+        save_mode="scalar",
+        params={"fps": FPS},
+    ),
+    "phisideways": FeatureSpec(
+        func=compute_phisideways,
+        requires=["phi", "theta"],
+        outputs=["phisideways"],
+        units={
+            "phisideways": {"quantity": "sideways_angle", "unit_raw": "rad", "unit_si": "rad", "scale_expr": "1"},
+        },
+        enabled=True,
+        save_mode="scalar",
+    ),
+    "yaw": FeatureSpec(
+        func=compute_yaw,
+        requires=["phi", "theta"],
+        outputs=["yaw"],
+        units={
+            "yaw": {"quantity": "yaw_angle", "unit_raw": "rad", "unit_si": "rad", "scale_expr": "1"},
+        },
+        enabled=True,
+        save_mode="scalar",
+    ),
+    "absyaw": FeatureSpec(
+        func=compute_absyaw,
+        requires=["yaw"],
+        outputs=["absyaw"],
+        units={
+            "absyaw": {"quantity": "absolute_yaw_angle", "unit_raw": "rad", "unit_si": "rad", "scale_expr": "1"},
+        },
+        enabled=True,
+        save_mode="scalar",
+    ),
+
+
+    # Social features
+    "dell2nose": FeatureSpec(
+        func=compute_dell2nose,
+        requires=["body_scale", "theta"],
+        outputs=["dell2nose", "closestfly_ell2nose"],
+        units={
+            "dell2nose": {"quantity": "distance", "unit_raw": "mm", "unit_si": "mm", "scale_expr": "1"},
+            "closestfly_ell2nose": {"quantity": "index", "unit_raw": "unit", "unit_si": "unit", "scale_expr": "1"},
+        },
+        enabled=True,
+        save_mode="scalar",
+        params={"pxpermm": PXPERMM, "n_samples": 20},
+    ),
+    "dnose2ell": FeatureSpec(
+        func=compute_dnose2ell,
+        requires=["body_scale", "theta"],
+        outputs=["dnose2ell", "angleonclosestfly", "closestfly_nose2ell"],
+        units={
+            "dnose2ell": {"quantity": "distance", "unit_raw": "mm", "unit_si": "mm", "scale_expr": "1"},
+            "angleonclosestfly": {"quantity": "angle", "unit_raw": "rad", "unit_si": "rad", "scale_expr": "1"},
+            "closestfly_nose2ell": {"quantity": "index", "unit_raw": "unit", "unit_si": "unit", "scale_expr": "1"},
+        },
+        enabled=True,
+        save_mode="scalar",
+        params={"pxpermm": PXPERMM, "n_samples": 20},
+    ),
+    "anglesub": FeatureSpec(
+        func=compute_anglesub,
+        requires=["body_scale", "theta"],
+        outputs=["anglesub", "closestfly_anglesub"],
+        units={
+            "anglesub": {"quantity": "angle","unit_raw": "rad", "unit_si": "rad", "scale_expr": "1"},
+            "closestfly_anglesub": {"quantity": "index","unit_raw": "unit", "unit_si": "unit", "scale_expr": "1"},
+        },
+        enabled=True,
+        save_mode="scalar",
+        params={"pxpermm": PXPERMM, "fov": np.pi, "n_samples": 100},
+    ),
+    "danglesub": FeatureSpec(
+        func=compute_danglesub,
+        requires=["anglesub"],
+        outputs=["danglesub"],
+        units={
+            "danglesub": {"quantity": "angle_change_rate","unit_raw": "rad/sec", "unit_si": "rad/sec", "scale_expr": "1"},
+        },
+        enabled=True,
+        save_mode="scalar",
+        params={"fps": FPS},
+    ),
+    "dcenter": FeatureSpec(
+        func=compute_dcenter,
+        requires=[],
+        outputs=["dcenter", "closestfly_center"],
+        units={
+            "dcenter": {"quantity": "distance", "unit_raw": "mm", "unit_si": "mm", "scale_expr": "1"},
+            "closestfly_center": {"quantity": "index", "unit_raw": "unit", "unit_si": "unit", "scale_expr": "1"},
+        },
+        enabled=True,
+        save_mode="scalar",
+        params={"pxpermm": PXPERMM},
+    ),
+    "ddcenter": FeatureSpec(
+        func=compute_ddcenter,
+        requires=["dcenter"],
+        outputs=["ddcenter"],
+        units={
+            "ddcenter": {"quantity": "distance_change_rate","unit_raw": "mm/sec", "unit_si": "mm/sec", "scale_expr": "1"},
+        },
+        enabled=True,
+        save_mode="scalar",
+        params={"fps": FPS},
+    ),
+    "dnose2tail": FeatureSpec(
+        func=compute_dnose2tail,
+        requires=["nose_tail_mm"],
+        outputs=["dnose2tail", "closestfly_nose2tail"],
+        units={
+            "dnose2tail": {"quantity": "distance", "unit_raw": "mm", "unit_si": "mm", "scale_expr": "1"},
+            "closestfly_nose2tail": {"quantity": "index", "unit_raw": "unit", "unit_si": "unit", "scale_expr": "1"},
+        },
+        enabled=True,
+        save_mode="scalar",
+        params={"pxpermm": PXPERMM},
+    ),
+
 }
 
 # Validate registry consistency at import time.
@@ -322,7 +568,8 @@ def compute_item(
     for dep in spec.requires:
         compute_item(dep, tracks, registry, computed, **kwargs)
 
-    value = spec.func(tracks, features=computed, **kwargs)
+    merged_kwargs = {**kwargs, **spec.params}
+    value = spec.func(tracks, features=computed, **merged_kwargs)
 
     if spec.outputs:
         if not isinstance(value, dict):
