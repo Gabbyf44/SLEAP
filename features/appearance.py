@@ -9,8 +9,22 @@ def compute_xy(tracks, features=None, ctr_ind=1, pxpermm=10.5, **kwargs):
         "y_mm": y.astype(np.float64),
     }
 
-# a: Quarter major axis length, b: Quarter minor axis length
 def compute_ab(tracks, features=None, fwd_ind=0, abdomen_idx = 2, left_wing_idx=3, right_wing_idx=4, pxpermm=10.5, **kwargs):
+    """
+    Compute body semi-axes.
+
+    a_mm : major semi-axis (mm)
+        Half the distance from head (fwd_ind) to abdomen (abdomen_idx),
+        divided by 2. Represents half the body length.
+
+    b_mm : minor semi-axis (mm)
+        Half the distance from left wing tip to right wing tip,
+        divided by 2. Represents half the body width.
+
+    Note: the full major axis = 2*a_mm, full minor axis = 2*b_mm.
+    The nose is at centroid + 2*a_mm along theta,
+    the tail at centroid - 2*a_mm along theta.
+    """
     a = (np.sqrt(np.sum((tracks[:,fwd_ind,:,:] - tracks[:,abdomen_idx,:,:])**2, axis=1)) / 4).astype(np.float64)
     b = (np.sqrt(np.sum((tracks[:,left_wing_idx,:,:] - tracks[:,right_wing_idx,:,:])**2, axis=1)) / 4).astype(np.float64)
 
@@ -22,9 +36,13 @@ def compute_ab(tracks, features=None, fwd_ind=0, abdomen_idx = 2, left_wing_idx=
         "b_mm": b_mm,
     }
 
-# da:  Change in quarter major axis length from frame t to t+1,
-# db:  Change in quarter minor axis length from frame t to t+1
 def compute_dab(tracks, features=None, fps=30, **kwargs):
+    """
+    Compute the rate of change of the body semi-axes.
+
+    da : rate of change of a_mm (mm/s)
+    db : rate of change of b_mm (mm/s)
+    """
     a_mm = features["a_mm"]
     b_mm = features["b_mm"]
 
