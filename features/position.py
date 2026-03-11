@@ -1,7 +1,7 @@
 import numpy as np
 
 # velocity direction
-def compute_phi(tracks, features=None, ctr_ind=1, fwd_ind=0, **kwargs):
+def compute_phi(tracks, features=None, ctr_ind=1, **kwargs):
     """
     Direction of the velocity vector (movement direction) in radians [-pi, pi].
     """
@@ -22,7 +22,7 @@ def compute_phi(tracks, features=None, ctr_ind=1, fwd_ind=0, **kwargs):
     }
 
 # change in velocity direction
-def compute_dphi(tracks, features=None, ctr_ind=1, fwd_ind=0, fps=30, **kwargs):
+def compute_dphi(tracks, features=None, fps=30, **kwargs):
     """
     Rate of change of velocity direction (rad/s).
     """
@@ -58,6 +58,8 @@ def compute_yaw(tracks, features=None, **kwargs):
 
     0        = moving straight forward
     +pi/2    = moving purely left (sideways)
+    +-pi     = moving straight backward
+    +-pi     = moving straight backward
     +-pi     = moving straight backward
 
     Unsigned/folded version is phisideways.

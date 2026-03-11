@@ -2,7 +2,9 @@ from typing import Callable, List, Dict, Literal
 from dataclasses import dataclass, field
 import numpy as np
 
-from params import NODE_IDX_THORAX, NODE_IDX_ABDOMEN, NODE_IDX_L_WING, NODE_IDX_R_WING, PXPERMM, FPS
+from params import (NODE_IDX_HEAD, NODE_IDX_THORAX, NODE_IDX_ABDOMEN,
+                    NODE_IDX_L_WING, NODE_IDX_R_WING,
+                    PXPERMM, FPS)
 
 from features.appearance import (compute_xy, compute_ab, compute_dab,
                                  compute_area, compute_darea,
@@ -30,6 +32,14 @@ from features.social import (compute_dell2nose, compute_dnose2ell,
                              compute_magveldiff_anglesub, compute_magveldiff_nose2ell,
                              compute_veltoward_anglesub, compute_veltoward_nose2ell,
                              compute_nflies_close)
+
+from features.wing_appearance import (compute_wing_angles,compute_mean_wing_angle,
+                                      compute_wing_angle_diff, compute_wing_angle_imbalance,
+                                      compute_minmax_wing_angle)
+
+from features.wing_movement import (compute_dminmax_wing_angle, compute_minmax_absdwing_angle,
+                                    compute_dwing_angle_diff, compute_dwing_angle_imbalance,
+                                    compute_minmax_dwing_angle_in, compute_minmax_dwing_angle_out)
 
 
 @dataclass
@@ -148,7 +158,8 @@ REGISTRY = {
         units={},
         enabled=True,
         save_mode="none",
-        params={"abdomen_idx": NODE_IDX_ABDOMEN,
+        params={"fwd_ind": NODE_IDX_HEAD,
+                "abdomen_idx": NODE_IDX_ABDOMEN,
                 "leftW_idx": NODE_IDX_L_WING,
                 "rightW_idx": NODE_IDX_R_WING,
                 "pxpermm": PXPERMM},
@@ -220,7 +231,6 @@ REGISTRY = {
         },
         enabled=True,
         save_mode="none",
-        params={"pxpermm": PXPERMM},
     ),
 
 
@@ -235,6 +245,7 @@ REGISTRY = {
         },
         enabled=True,
         save_mode="none",
+        params={"fwd_ind": NODE_IDX_HEAD, "ctr_ind": NODE_IDX_THORAX},
     ),
     "dtheta": FeatureSpec(
         func=compute_dtheta,
@@ -266,8 +277,7 @@ REGISTRY = {
             "corfrac_min": {"quantity": "fractional_offset", "unit_raw": "unit", "unit_si": "unit", "scale_expr": "1"},
         },
         enabled=True,
-        save_mode="scalar",
-        params={"pxpermm": PXPERMM},
+        save_mode="scalar"
     ),
     "dv_cor": FeatureSpec(
         func=compute_dv_cor,
@@ -279,7 +289,7 @@ REGISTRY = {
         },
         enabled=True,
         save_mode="scalar",
-        params={"fps": FPS, "pxpermm": PXPERMM},
+        params={"fps": FPS},
     ),
     "absdv_cor": FeatureSpec(
         func=compute_absdv_cor,
@@ -302,7 +312,7 @@ REGISTRY = {
         },
         enabled=True,
         save_mode="scalar",
-        params={"fps": FPS, "pxpermm": PXPERMM},
+        params={"fps": FPS},
     ),
     "du_ctr": FeatureSpec(
         func=compute_du_ctr,
@@ -313,7 +323,7 @@ REGISTRY = {
         },
         enabled=True,
         save_mode="scalar",
-        params={"fps": FPS, "pxpermm": PXPERMM},
+        params={"fps": FPS},
     ),
     "du_tail": FeatureSpec(
         func=compute_du_tail,
@@ -324,7 +334,7 @@ REGISTRY = {
         },
         enabled=True,
         save_mode="scalar",
-        params={"fps": FPS, "pxpermm": PXPERMM},
+        params={"fps": FPS},
     ),
     "dv_ctr": FeatureSpec(
         func=compute_dv_ctr,
@@ -335,7 +345,7 @@ REGISTRY = {
         },
         enabled=True,
         save_mode="scalar",
-        params={"fps": FPS, "pxpermm": PXPERMM},
+        params={"fps": FPS},
     ),
     "dv_tail": FeatureSpec(
         func=compute_dv_tail,
@@ -346,7 +356,7 @@ REGISTRY = {
         },
         enabled=True,
         save_mode="scalar",
-        params={"fps": FPS, "pxpermm": PXPERMM},
+        params={"fps": FPS},
     ),
     "signdtheta": FeatureSpec(
         func=compute_signdtheta,
@@ -376,7 +386,7 @@ REGISTRY = {
         units={"velmag_ctr": {"quantity": "speed", "unit_raw": "mm/sec", "unit_si": "mm/sec", "scale_expr": "1"}},
         enabled=True,
         save_mode="scalar",
-        params={"fps": FPS, "pxpermm": PXPERMM},
+        params={"fps": FPS},
     ),
     "velmag": FeatureSpec(
         func=compute_velmag,
@@ -385,7 +395,7 @@ REGISTRY = {
         units={"velmag": {"quantity": "speed", "unit_raw": "mm/sec", "unit_si": "mm/sec", "scale_expr": "1"}},
         enabled=True,
         save_mode="scalar",
-        params={"fps": FPS, "pxpermm": PXPERMM},
+        params={"fps": FPS},
     ),
     "velmag_nose": FeatureSpec(
         func=compute_velmag_nose,
@@ -394,7 +404,7 @@ REGISTRY = {
         units={"velmag_nose": {"quantity": "speed", "unit_raw": "mm/sec", "unit_si": "mm/sec", "scale_expr": "1"}},
         enabled=True,
         save_mode="scalar",
-        params={"fps": FPS, "pxpermm": PXPERMM},
+        params={"fps": FPS},
     ),
     "velmag_tail": FeatureSpec(
         func=compute_velmag_tail,
@@ -403,7 +413,7 @@ REGISTRY = {
         units={"velmag_tail": {"quantity": "speed", "unit_raw": "mm/sec", "unit_si": "mm/sec", "scale_expr": "1"}},
         enabled=True,
         save_mode="scalar",
-        params={"fps": FPS, "pxpermm": PXPERMM},
+        params={"fps": FPS},
     ),
 
 
@@ -417,6 +427,7 @@ REGISTRY = {
         },
         enabled=True,
         save_mode="scalar",
+        params={"ctr_ind": NODE_IDX_THORAX},
     ),
     "dphi": FeatureSpec(
         func=compute_dphi,
@@ -472,7 +483,7 @@ REGISTRY = {
         },
         enabled=True,
         save_mode="scalar",
-        params={"pxpermm": PXPERMM, "n_samples": 20},
+        params={"n_samples": 20},
     ),
     "dnose2ell": FeatureSpec(
         func=compute_dnose2ell,
@@ -485,7 +496,7 @@ REGISTRY = {
         },
         enabled=True,
         save_mode="scalar",
-        params={"pxpermm": PXPERMM, "n_samples": 20},
+        params={"n_samples": 20},
     ),
     "anglesub": FeatureSpec(
         func=compute_anglesub,
@@ -497,7 +508,7 @@ REGISTRY = {
         },
         enabled=True,
         save_mode="scalar",
-        params={"pxpermm": PXPERMM, "fov": np.pi, "n_samples": 100},
+        params={"fov": np.pi, "n_samples": 100},
     ),
     "danglesub": FeatureSpec(
         func=compute_danglesub,
@@ -520,7 +531,6 @@ REGISTRY = {
         },
         enabled=True,
         save_mode="scalar",
-        params={"pxpermm": PXPERMM},
     ),
     "ddcenter": FeatureSpec(
         func=compute_ddcenter,
@@ -543,7 +553,6 @@ REGISTRY = {
         },
         enabled=True,
         save_mode="scalar",
-        params={"pxpermm": PXPERMM},
     ),
     "absphidiff_anglesub": FeatureSpec(
         func=compute_absphidiff_anglesub,
@@ -594,7 +603,6 @@ REGISTRY = {
         },
         enabled=True,
         save_mode="scalar",
-        params={"pxpermm": PXPERMM},
     ),
     "anglefrom1to2_nose2ell": FeatureSpec(
         func=compute_anglefrom1to2_nose2ell,
@@ -605,7 +613,6 @@ REGISTRY = {
         },
         enabled=True,
         save_mode="scalar",
-        params={"pxpermm": PXPERMM},
     ),
     "absanglefrom1to2_nose2ell": FeatureSpec(
         func=compute_absanglefrom1to2_nose2ell,
@@ -626,7 +633,7 @@ REGISTRY = {
         },
         enabled=True,
         save_mode="scalar",
-        params={"fps": FPS, "pxpermm": PXPERMM},
+        params={"fps": FPS},
     ),
     "magveldiff_nose2ell": FeatureSpec(
         func=compute_magveldiff_nose2ell,
@@ -637,7 +644,7 @@ REGISTRY = {
         },
         enabled=True,
         save_mode="scalar",
-        params={"fps": FPS, "pxpermm": PXPERMM},
+        params={"fps": FPS},
     ),
     "veltoward_anglesub": FeatureSpec(
         func=compute_veltoward_anglesub,
@@ -648,7 +655,7 @@ REGISTRY = {
         },
         enabled=True,
         save_mode="scalar",
-        params={"fps": FPS, "pxpermm": PXPERMM},
+        params={"fps": FPS},
     ),
     "veltoward_nose2ell": FeatureSpec(
         func=compute_veltoward_nose2ell,
@@ -659,7 +666,7 @@ REGISTRY = {
         },
         enabled=True,
         save_mode="scalar",
-        params={"fps": FPS, "pxpermm": PXPERMM},
+        params={"fps": FPS},
     ),
     "nflies_close": FeatureSpec(
         func=compute_nflies_close,
@@ -670,7 +677,139 @@ REGISTRY = {
         },
         enabled=True,
         save_mode="scalar",
-        params={"pxpermm": PXPERMM, "nbodylengths_near": 2.0},
+        params={"nbodylengths_near": 2.0},
+    ),
+
+
+    # wing appearance
+    "wing_angles": FeatureSpec(
+        func=compute_wing_angles,
+        requires=["theta"],
+        outputs=[],
+        intermediates=["wingL", "wingR"],
+        units={
+            "wingL": {"quantity": "angle", "unit_raw": "rad", "unit_si": "rad", "scale_expr": "1"},
+            "wingR": {"quantity": "angle", "unit_raw": "rad", "unit_si": "rad", "scale_expr": "1"},
+        },
+        enabled=True,
+        save_mode="none",
+        params={"ctr_ind": NODE_IDX_THORAX, "left_ind": NODE_IDX_L_WING, "right_ind": NODE_IDX_R_WING},
+    ),
+    "mean_wing_angle": FeatureSpec(
+        func=compute_mean_wing_angle,
+        requires=["wing_angles"],
+        outputs=["mean_wing_angle"],
+        units={
+            "mean_wing_angle": {"quantity": "angle", "unit_raw": "rad", "unit_si": "rad", "scale_expr": "1"},
+        },
+        enabled=True,
+        save_mode="scalar",
+    ),
+    "wing_angle_diff": FeatureSpec(
+        func=compute_wing_angle_diff,
+        requires=["wing_angles"],
+        outputs=["wing_angle_diff"],
+        units={
+            "wing_angle_diff": {"quantity": "angle", "unit_raw": "rad", "unit_si": "rad", "scale_expr": "1",},
+        },
+        enabled=True,
+        save_mode="scalar",
+    ),
+    "wing_angle_imbalance": FeatureSpec(
+        func=compute_wing_angle_imbalance,
+        requires=["wing_angles"],
+        outputs=["wing_angle_imbalance"],
+        units={
+            "wing_angle_imbalance": {"quantity": "angle", "unit_raw": "rad", "unit_si": "rad", "scale_expr": "1",},
+        },
+        enabled=True,
+        save_mode="scalar",
+    ),
+    "minmax_wing_angle": FeatureSpec(
+        func=compute_minmax_wing_angle,
+        requires=["wing_angles"],
+        outputs=["min_wing_angle", "max_wing_angle"],
+        units={
+             "min_wing_angle": {"quantity": "angle", "unit_raw": "rad", "unit_si": "rad", "scale_expr": "1"},
+             "max_wing_angle": {"quantity": "angle", "unit_raw": "rad", "unit_si": "rad", "scale_expr": "1"},
+        },
+        enabled=True,
+        save_mode="scalar",
+    ),
+
+
+    # wing movement
+    "dminmax_wing_angle": FeatureSpec(
+        func=compute_dminmax_wing_angle,
+        requires=["wing_angles"],
+        outputs=["dmax_wing_angle", "dmin_wing_angle"],
+        units={
+            "dmax_wing_angle": {"quantity": "angle_change_rate", "unit_raw": "rad/sec", "unit_si": "rad/sec", "scale_expr": "1"},
+            "dmin_wing_angle": {"quantity": "angle_change_rate", "unit_raw": "rad/sec", "unit_si": "rad/sec", "scale_expr": "1"},
+        },
+        enabled=True,
+        save_mode="scalar",
+        params={"fps": FPS},
+    ),
+    "minmax_absdwing_angle": FeatureSpec(
+        func=compute_minmax_absdwing_angle,
+        requires=["wing_angles"],
+        outputs=["min_absdwing_angle", "max_absdwing_angle"],
+        units={
+            "min_absdwing_angle": {"quantity": "angle_change_rate", "unit_raw": "rad/sec", "unit_si": "rad/sec",
+                                   "scale_expr": "1"},
+            "max_absdwing_angle": {"quantity": "angle_change_rate", "unit_raw": "rad/sec", "unit_si": "rad/sec",
+                                   "scale_expr": "1"},
+        },
+        enabled=True,
+        save_mode="scalar",
+        params={"fps": FPS},
+    ),
+    "dwing_angle_diff": FeatureSpec(
+        func=compute_dwing_angle_diff,
+        requires=["wing_angle_diff"],
+        outputs=["dwing_angle_diff"],
+        units={
+            "dwing_angle_diff": {"quantity": "angle_change_rate", "unit_raw": "rad/sec", "unit_si": "rad/sec", "scale_expr": "1"},
+        },
+        enabled=True,
+        save_mode="scalar",
+        params={"fps": FPS},
+    ),
+    "dwing_angle_imbalance": FeatureSpec(
+        func=compute_dwing_angle_imbalance,
+        requires=["wing_angles"],
+        outputs=["dwing_angle_imbalance"],
+        units={
+            "dwing_angle_imbalance": {"quantity": "angle_change_rate", "unit_raw": "rad/sec", "unit_si": "rad/sec", "scale_expr": "1",},
+        },
+        enabled=True,
+        save_mode="scalar",
+        params={"fps": FPS},
+    ),
+    "minmax_dwing_angle_in": FeatureSpec(
+        func=compute_minmax_dwing_angle_in,
+        requires=["wing_angles"],
+        outputs=["max_dwing_angle_in", "min_dwing_angle_in"],
+        units={
+            "max_dwing_angle_in": {"quantity": "angle_change_rate", "unit_raw": "rad/sec", "unit_si": "rad/sec", "scale_expr": "1"},
+            "min_dwing_angle_in": {"quantity": "angle_change_rate", "unit_raw": "rad/sec", "unit_si": "rad/sec", "scale_expr": "1"},
+        },
+        enabled=True,
+        save_mode="scalar",
+        params={"fps": FPS},
+    ),
+    "minmax_dwing_angle_out": FeatureSpec(
+        func=compute_minmax_dwing_angle_out,
+        requires=["wing_angles"],
+        outputs=["max_dwing_angle_out", "min_dwing_angle_out"],
+        units={
+            "max_dwing_angle_out": {"quantity": "angle_change_rate", "unit_raw": "rad/sec", "unit_si": "rad/sec", "scale_expr": "1"},
+            "min_dwing_angle_out": {"quantity": "angle_change_rate", "unit_raw": "rad/sec", "unit_si": "rad/sec", "scale_expr": "1"},
+        },
+        enabled=True,
+        save_mode="scalar",
+        params={"fps": FPS},
     ),
 }
 

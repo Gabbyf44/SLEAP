@@ -10,7 +10,7 @@ def compute_theta(tracks, features=None, ctr_ind=1, fwd_ind=0, **kwargs):
     }
 
 # change in body orientation
-def compute_dtheta(tracks, features=None, ctr_ind=1, fwd_ind=0, fps=30, **kwargs):
+def compute_dtheta(tracks, features=None, fps=30, **kwargs):
     theta = features["theta"]
     dtheta = np.diff(theta, axis=0, prepend=np.nan)
     dtheta = ((dtheta + np.pi) % (2 * np.pi) - np.pi) * fps
@@ -20,7 +20,7 @@ def compute_dtheta(tracks, features=None, ctr_ind=1, fwd_ind=0, fps=30, **kwargs
     }
 
 # Angular speed
-def compute_absdtheta(tracks, features=None, ctr_ind=1, fwd_ind=0, **kwargs):
+def compute_absdtheta(tracks, features=None, **kwargs):
     dtheta = features["dtheta"]
     absdtheta = np.abs(dtheta)
 
@@ -48,8 +48,6 @@ def center_of_rotation2(x_mm, y_mm, a_mm, b_mm, theta, N=100):
     Z = dacost * dbcost + dbsint * dasint   # (T-1,)
 
     # M^{-1} stored as 4 rows: [m11, m12, m21, m22]
-    # (MATLAB Minv is 2x2xT, reshaped to 4xT; rows index as col-major)
-    # MATLAB reshape([m11;m21;m12;m22]) → Python rows: m11,m21,m12,m22
     safe_Z = np.where(Z == 0, 1.0, Z)          # avoid divide-by-zero
     m11 =  dbcost / safe_Z
     m21 =  dbsint / safe_Z
@@ -134,7 +132,7 @@ def _rfrac2center(x_mm, y_mm, a_mm, b_mm, theta_mm, rfrac_maj, rfrac_min):
     return x1, y1, x2, y2
 
 
-def compute_corfrac(tracks, features=None, ctr_ind=1, pxpermm=10.5, **kwargs):
+def compute_corfrac(tracks, features=None, **kwargs):
     """
     Center-of-rotation fractional offset along major and minor body axes.
     Shape: (T, n_flies), row 0 is NaN (no prior frame).
@@ -163,7 +161,7 @@ def compute_corfrac(tracks, features=None, ctr_ind=1, pxpermm=10.5, **kwargs):
         "corfrac_min": corfrac_min.astype(np.float64),
     }
 
-def _cor_displacement(tracks, features, pxpermm, ctr_ind):
+def _cor_displacement(tracks, features):
     """
     Compute per-fly CoR displacement vectors for consecutive frame pairs.
     Returns dx_cor, dy_cor of shape (T-1, n_flies).
@@ -191,12 +189,12 @@ def _cor_displacement(tracks, features, pxpermm, ctr_ind):
 
     return dx_cor, dy_cor
 
-def _cor_velocity(tracks, features, fps, pxpermm, ctr_ind, project_lateral):
+def _cor_velocity(tracks, features, fps, project_lateral):
     """
     project_lateral=False → project onto theta       (du_cor)
     project_lateral=True  → project onto theta+pi/2  (dv_cor)
     """
-    dx_cor, dy_cor = _cor_displacement(tracks, features, pxpermm, ctr_ind)
+    dx_cor, dy_cor = _cor_displacement(tracks, features)
     theta_t = features["theta"][:-1, :]
     angle   = theta_t + (np.pi / 2 if project_lateral else 0.0)
     result  = (dx_cor * np.cos(angle) + dy_cor * np.sin(angle)) * fps
@@ -204,20 +202,20 @@ def _cor_velocity(tracks, features, fps, pxpermm, ctr_ind, project_lateral):
     nan_row = np.full((1, tracks.shape[-1]), np.nan)
     return np.concatenate([nan_row, result], axis=0).astype(np.float64)
 
-def compute_dv_cor(tracks, features=None, ctr_ind=1, fps=30, pxpermm=10.5, **kwargs):
+def compute_dv_cor(tracks, features=None, fps=30, **kwargs):
     """Sideways velocity of the center of rotation (mm/s)."""
-    return {"dv_cor": _cor_velocity(tracks, features, fps, pxpermm, ctr_ind, project_lateral=True)}
+    return {"dv_cor": _cor_velocity(tracks, features, fps, project_lateral=True)}
 
 
 def compute_absdv_cor(tracks, features=None, **kwargs):
     """Absolute sideways velocity of the center of rotation (mm/s)."""
     return {"absdv_cor": np.abs(features["dv_cor"]).astype(np.float64)}
 
-def compute_du_cor(tracks, features=None, ctr_ind=1, fps=30, pxpermm=10.5, **kwargs):
+def compute_du_cor(tracks, features=None, fps=30, **kwargs):
     """Forward velocity of the center of rotation (mm/s)."""
-    return {"du_cor": _cor_velocity(tracks, features, fps, pxpermm, ctr_ind, project_lateral=False)}
+    return {"du_cor": _cor_velocity(tracks, features, fps, project_lateral=False)}
 
-def _point_velocity(tracks, features, fps, pxpermm, ctr_ind, lateral, use_tail):
+def _point_velocity(tracks, features, fps, lateral, use_tail):
     """
     Shared core for centroid/tail × forward/sideways velocity.
 
@@ -244,21 +242,21 @@ def _point_velocity(tracks, features, fps, pxpermm, ctr_ind, lateral, use_tail):
     nan_row = np.full((1, tracks.shape[-1]), np.nan)
     return np.concatenate([nan_row, result], axis=0).astype(np.float64)
 
-def compute_du_ctr(tracks, features=None, ctr_ind=1, fps=30, pxpermm=10.5, **kwargs):
+def compute_du_ctr(tracks, features=None, fps=30, **kwargs):
     """Forward velocity of the body center (mm/s)."""
-    return {"du_ctr": _point_velocity(tracks, features, fps, pxpermm, ctr_ind, lateral=False, use_tail=False)}
+    return {"du_ctr": _point_velocity(tracks, features, fps, lateral=False, use_tail=False)}
 
-def compute_dv_ctr(tracks, features=None, ctr_ind=1, fps=30, pxpermm=10.5, **kwargs):
+def compute_dv_ctr(tracks, features=None, fps=30, **kwargs):
     """Sideways velocity of the body center (mm/s)."""
-    return {"dv_ctr": _point_velocity(tracks, features, fps, pxpermm, ctr_ind, lateral=True,  use_tail=False)}
+    return {"dv_ctr": _point_velocity(tracks, features, fps, lateral=True,  use_tail=False)}
 
-def compute_du_tail(tracks, features=None, ctr_ind=1, fps=30, pxpermm=10.5, **kwargs):
+def compute_du_tail(tracks, features=None, fps=30, **kwargs):
     """Forward velocity of the tail point (mm/s)."""
-    return {"du_tail": _point_velocity(tracks, features, fps, pxpermm, ctr_ind, lateral=False, use_tail=True)}
+    return {"du_tail": _point_velocity(tracks, features, fps, lateral=False, use_tail=True)}
 
-def compute_dv_tail(tracks, features=None, ctr_ind=1, fps=30, pxpermm=10.5, **kwargs):
+def compute_dv_tail(tracks, features=None, fps=30, **kwargs):
     """Sideways velocity of the tail point (mm/s)."""
-    return {"dv_tail": _point_velocity(tracks, features, fps, pxpermm, ctr_ind, lateral=True,  use_tail=True)}
+    return {"dv_tail": _point_velocity(tracks, features, fps, lateral=True,  use_tail=True)}
 
 def compute_signdtheta(tracks, features=None, **kwargs):
     """Sign of body orientation change rate. +1 turning left, -1 turning right."""
@@ -275,9 +273,9 @@ def compute_flipdv_cor(tracks, features=None, **kwargs):
         "flipdv_cor": (features["dv_cor"] * features["signdtheta"]).astype(np.float64)
     }
 
-def compute_velmag(tracks, features=None, ctr_ind=1, fps=30, pxpermm=10.5, **kwargs):
+def compute_velmag(tracks, features=None, fps=30, **kwargs):
     """Speed of center of rotation (mm/s). Falls back to velmag_ctr where CoR is NaN."""
-    dx_cor, dy_cor = _cor_displacement(tracks, features, pxpermm, ctr_ind)
+    dx_cor, dy_cor = _cor_displacement(tracks, features)
 
     mag      = np.sqrt(dx_cor ** 2 + dy_cor ** 2) * fps
     bad      = np.isnan(dx_cor)
@@ -289,7 +287,7 @@ def compute_velmag(tracks, features=None, ctr_ind=1, fps=30, pxpermm=10.5, **kwa
         "velmag": np.concatenate([nan_row, mag], axis=0).astype(np.float64)
     }
 
-def _point_speed(tracks, features, fps, pxpermm, ctr_ind, use_nose=False, use_tail=False):
+def _point_speed(tracks, features, fps, use_nose=False, use_tail=False):
     """
     Shared core for velmag_ctr / velmag_nose / velmag_tail.
     Computes speed (magnitude of displacement) of a body point.
@@ -315,15 +313,15 @@ def _point_speed(tracks, features, fps, pxpermm, ctr_ind, use_nose=False, use_ta
     nan_row = np.full((1, tracks.shape[-1]), np.nan)
     return np.concatenate([nan_row, speed], axis=0).astype(np.float64)
 
-def compute_velmag_ctr(tracks, features=None, ctr_ind=1, fps=30, pxpermm=10.5, **kwargs):
+def compute_velmag_ctr(tracks, features=None, fps=30, **kwargs):
     """Speed of body centroid (mm/s)."""
-    return {"velmag_ctr": _point_speed(tracks, features, fps, pxpermm, ctr_ind)}
+    return {"velmag_ctr": _point_speed(tracks, features, fps)}
 
-def compute_velmag_nose(tracks, features=None, ctr_ind=1, fps=30, pxpermm=10.5, **kwargs):
+def compute_velmag_nose(tracks, features=None, fps=30, **kwargs):
     """Speed of nose point — centroid + 2a along +theta (mm/s)."""
-    return {"velmag_nose": _point_speed(tracks, features, fps, pxpermm, ctr_ind, use_nose=True)}
+    return {"velmag_nose": _point_speed(tracks, features, fps, use_nose=True)}
 
-def compute_velmag_tail(tracks, features=None, ctr_ind=1, fps=30, pxpermm=10.5, **kwargs):
+def compute_velmag_tail(tracks, features=None, fps=30, **kwargs):
     """Speed of tail point — centroid + 2a along -theta (mm/s)."""
-    return {"velmag_tail": _point_speed(tracks, features, fps, pxpermm, ctr_ind, use_tail=True)}
+    return {"velmag_tail": _point_speed(tracks, features, fps, use_tail=True)}
 

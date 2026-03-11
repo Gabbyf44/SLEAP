@@ -50,7 +50,7 @@ def _ell2point_dist(
     j[idx]     = j_min
     return d, j
 
-def _pairwise_nose_ell(tracks, features, pxpermm, ctr_ind):
+def _pairwise_nose_ell(tracks, features):
     """
     Shared setup for compute_dell2nose and compute_dnose2ell.
     Returns x_mm, y_mm, a_mm, b_mm, theta, nose_x, nose_y — all (T, n_flies).
@@ -69,13 +69,12 @@ def _dell2nose_pair(x1, y1, a1, b1, theta1, xnose2, ynose2, valid, n_samples=20)
     d, _ = _ell2point_dist(x1, y1, a1, b1, theta1, xnose2, ynose2, valid, n_samples)
     return d
 
-def compute_dell2nose(tracks, features=None, ctr_ind=1, pxpermm=10.5, n_samples=20, **kwargs):
+def compute_dell2nose(tracks, features=None, n_samples=20, **kwargs):
     """
     For each fly: minimum distance from any point on its body ellipse
     to the nose of the nearest other fly (mm).
     """
-    x_mm, y_mm, a_mm, b_mm, theta, nose_x, nose_y = _pairwise_nose_ell(
-        tracks, features, pxpermm, ctr_ind)
+    x_mm, y_mm, a_mm, b_mm, theta, nose_x, nose_y = _pairwise_nose_ell(tracks, features)
     T, n_flies = x_mm.shape
 
     dell2nose           = np.full((T, n_flies), np.nan)
@@ -129,16 +128,13 @@ def _dnose2ell_pair(xnose1, ynose1, x2, y2, a2, b2, theta2, valid, n_samples=20)
     return d, angle
 
 
-def compute_dnose2ell(
-    tracks, features=None, ctr_ind=1, pxpermm=10.5, n_samples=20, **kwargs
-):
+def compute_dnose2ell(tracks, features=None, n_samples=20, **kwargs):
     """
     For each fly: minimum distance from its nose to the ellipse boundary
     of the nearest other fly (mm), plus the angle on that ellipse where
     the closest point lies.
     """
-    x_mm, y_mm, a_mm, b_mm, theta, nose_x, nose_y = _pairwise_nose_ell(
-        tracks, features, pxpermm, ctr_ind)
+    x_mm, y_mm, a_mm, b_mm, theta, nose_x, nose_y = _pairwise_nose_ell(tracks, features)
     T, n_flies = x_mm.shape
 
     dnose2ell           = np.full((T, n_flies), np.nan)
@@ -257,10 +253,7 @@ def _anglesub_pair(
     return out
 
 
-def compute_anglesub(
-    tracks, features=None, ctr_ind=1, pxpermm=10.5,
-    fov=np.pi, n_samples=100, **kwargs
-):
+def compute_anglesub(tracks, features=None, fov=np.pi, n_samples=100, **kwargs):
     """
     For each fly: angle subtended by the nearest other fly's ellipse
     as seen from its centroid (rad).
@@ -361,7 +354,7 @@ def _pairwise_min_dist(pt1_x, pt1_y, pt2_x, pt2_y):
 
     return mind, closest
 
-def compute_dcenter(tracks, features=None, ctr_ind=1, pxpermm=10.5, **kwargs):
+def compute_dcenter(tracks, features=None, **kwargs):
     """Centroid-to-centroid distance to nearest other fly (mm)."""
     x_mm  = features["x_mm"]
     y_mm  = features["y_mm"]
@@ -515,7 +508,7 @@ def _anglefrom1to2(nose_x, nose_y, theta, x_mm, y_mm, closestfly):
     return out.astype(np.float64)
 
 
-def compute_anglefrom1to2_anglesub(tracks, features=None, ctr_ind=1, pxpermm=10.5, **kwargs):
+def compute_anglefrom1to2_anglesub(tracks, features=None, **kwargs):
     """Bearing from fly1's nose to the closest fly (by anglesub) centroid, egocentric (rad)."""
     x_mm  = features["x_mm"]
     y_mm  = features["y_mm"]
@@ -528,7 +521,7 @@ def compute_anglefrom1to2_anglesub(tracks, features=None, ctr_ind=1, pxpermm=10.
     }
 
 
-def compute_anglefrom1to2_nose2ell(tracks, features=None, ctr_ind=1, pxpermm=10.5, **kwargs):
+def compute_anglefrom1to2_nose2ell(tracks, features=None, **kwargs):
     """Bearing from fly1's nose to the closest fly (by nose2ell) centroid, egocentric (rad)."""
     x_mm  = features["x_mm"]
     y_mm  = features["y_mm"]
@@ -595,7 +588,7 @@ def _magveldiff(x_mm, y_mm, closestfly, fps):
     return out.astype(np.float64)
 
 
-def compute_magveldiff_anglesub(tracks, features=None, ctr_ind=1, fps=30, pxpermm=10.5, **kwargs):
+def compute_magveldiff_anglesub(tracks, features=None, fps=30, **kwargs):
     """Velocity difference magnitude vs closest fly by anglesub (mm/s)."""
     x_mm  = features["x_mm"]
     y_mm  = features["y_mm"]
@@ -606,7 +599,7 @@ def compute_magveldiff_anglesub(tracks, features=None, ctr_ind=1, fps=30, pxperm
     }
 
 
-def compute_magveldiff_nose2ell(tracks, features=None, ctr_ind=1, fps=30, pxpermm=10.5, **kwargs):
+def compute_magveldiff_nose2ell(tracks, features=None, fps=30, **kwargs):
     """Velocity difference magnitude vs closest fly by nose2ell (mm/s)."""
     x_mm  = features["x_mm"]
     y_mm  = features["y_mm"]
@@ -664,7 +657,7 @@ def _veltoward(x_mm, y_mm, closestfly, fps):
     return out.astype(np.float64)
 
 
-def compute_veltoward_anglesub(tracks, features=None, ctr_ind=1, fps=30, pxpermm=10.5, **kwargs):
+def compute_veltoward_anglesub(tracks, features=None, fps=30, **kwargs):
     """Signed velocity toward the closest fly by anglesub (mm/s)."""
     x_mm  = features["x_mm"]
     y_mm  = features["y_mm"]
@@ -675,7 +668,7 @@ def compute_veltoward_anglesub(tracks, features=None, ctr_ind=1, fps=30, pxpermm
     }
 
 
-def compute_veltoward_nose2ell(tracks, features=None, ctr_ind=1, fps=30, pxpermm=10.5, **kwargs):
+def compute_veltoward_nose2ell(tracks, features=None, fps=30, **kwargs):
     """Signed velocity toward the closest fly by nose2ell (mm/s)."""
     x_mm  = features["x_mm"]
     y_mm  = features["y_mm"]
@@ -685,10 +678,7 @@ def compute_veltoward_nose2ell(tracks, features=None, ctr_ind=1, fps=30, pxpermm
         )
     }
 
-def compute_nflies_close(
-    tracks, features=None, ctr_ind=1, pxpermm=10.5,
-    nbodylengths_near=2.0, **kwargs
-):
+def compute_nflies_close(tracks, features=None, nbodylengths_near=2.0, **kwargs):
     """
     Number of other flies within nbodylengths_near body lengths of each fly.
     "Close" = centroid distance <= nbodylengths_near * 4 * a_mm(fly1),
