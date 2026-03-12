@@ -153,11 +153,10 @@ REGISTRY = {
     "body_scale": FeatureSpec(
         func=compute_ab,
         requires=[],
-        outputs=[],
-        intermediates=["a_mm", "b_mm"],
+        outputs=["a_mm", "b_mm"],
         units={},
         enabled=True,
-        save_mode="none",
+        save_mode="scalar",
         params={"fwd_ind": NODE_IDX_HEAD,
                 "abdomen_idx": NODE_IDX_ABDOMEN,
                 "leftW_idx": NODE_IDX_L_WING,

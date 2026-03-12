@@ -47,6 +47,10 @@ def save_trx(features_source: Path, trx_dest: Path, timestamps: np.ndarray | Non
         "a_mm",
         "b_mm",
         "theta_mm",
+        "xwingl",
+        "ywingl",
+        "xwingr",
+        "ywingr",
     ]
 
     with h5py.File(features_h5, "r") as f:
@@ -130,6 +134,12 @@ def save_trx(features_source: Path, trx_dest: Path, timestamps: np.ndarray | Non
             b_mm = b / float(pxpermm)
             theta_mm = theta
 
+            xwingl = left_wing_pos[:, 0]
+            ywingl = left_wing_pos[:, 1]
+
+            xwingr = right_wing_pos[:, 0]
+            ywingr = right_wing_pos[:, 1]
+
             trx_entry: dict[str, object] = {"moviename": movie_path.name if movie_path else "movie",
                                             "moviefile": str(movie_path) if movie_path else "movie",
                                             "fps": float(fps),
@@ -151,7 +161,12 @@ def save_trx(features_source: Path, trx_dest: Path, timestamps: np.ndarray | Non
                                             "y_mm": y_mm,
                                             "theta_mm": theta_mm,
                                             "a_mm": a_mm,
-                                            "b_mm": b_mm}
+                                            "b_mm": b_mm,
+                                            "xwingl": xwingl,
+                                            "ywingl": ywingl,
+                                            "xwingr": xwingr,
+                                            "ywingr": ywingr,}
+
 
             trx_list.append(trx_entry)
 
