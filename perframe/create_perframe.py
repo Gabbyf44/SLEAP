@@ -64,8 +64,8 @@ def jaaba_units_from_h5_dataset(ds, default_quantity="other"):
         "distance": ("mm", None),
         "velocity": ("mm", "s"),
         "acceleration": ("mm", "s^2"),
-        "angle": ("deg", None),
-        "rot_speed": ("deg", "s"),
+        "angle": ("rad", None),
+        "rot_speed": ("rad", "s"),
         "time": ("s", None),
         "other": ("unit", None),
     }
@@ -109,7 +109,7 @@ def jaaba_data_cell(values_2d):
     return data_cell
 
 
-def export_perframe(features_h5, perframe_dir, overwrite, convert_units=True) -> None:
+def export_perframe(features_h5, perframe_dir, overwrite, convert_units=False) -> None:
     if not features_h5.is_file():
         raise FileNotFoundError(features_h5)
 

@@ -117,11 +117,10 @@ def save_trx(features_source: Path, trx_dest: Path, timestamps: np.ndarray | Non
             x = thorax_pos[:, 0].astype(np.float64)
             y = thorax_pos[:, 1].astype(np.float64)
 
-            # heading relative to x-axis in radians [0, 2pi)
+            # heading relative to x-axis in radians [-π, π]
             direction_vec = head_pos - thorax_pos
-            theta = np.arctan2(direction_vec[:, 1], direction_vec[:, 0])
-            theta = theta.astype(np.float64)
-            theta[theta < 0] += 2 * np.pi
+            theta = np.arctan2(direction_vec[:, 1], direction_vec[:, 0]).astype(np.float64)
+            theta = (theta + np.pi) % (2 * np.pi) - np.pi
 
             # "a" and "b"
             a = (np.sqrt(np.sum((head_pos - abdomen_pos) ** 2, axis=1)) / 4).astype(np.float64)

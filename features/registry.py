@@ -283,8 +283,7 @@ REGISTRY = {
         requires=["corfrac", "body_scale", "theta"],
         outputs=["dv_cor"],
         units={
-            "dv_cor": {"quantity": "lateral_velocity_cor", "unit_raw": "mm/sec", "unit_si": "mm/sec",
-                       "scale_expr": "1"},
+            "dv_cor": {"quantity": "lateral_velocity_cor", "unit_raw": "mm/sec", "unit_si": "mm/sec", "scale_expr": "1"},
         },
         enabled=True,
         save_mode="scalar",
@@ -755,10 +754,8 @@ REGISTRY = {
         requires=["wing_angles"],
         outputs=["min_absdwing_angle", "max_absdwing_angle"],
         units={
-            "min_absdwing_angle": {"quantity": "angle_change_rate", "unit_raw": "rad/sec", "unit_si": "rad/sec",
-                                   "scale_expr": "1"},
-            "max_absdwing_angle": {"quantity": "angle_change_rate", "unit_raw": "rad/sec", "unit_si": "rad/sec",
-                                   "scale_expr": "1"},
+            "min_absdwing_angle": {"quantity": "angle_change_rate", "unit_raw": "rad/sec", "unit_si": "rad/sec", "scale_expr": "1"},
+            "max_absdwing_angle": {"quantity": "angle_change_rate", "unit_raw": "rad/sec", "unit_si": "rad/sec", "scale_expr": "1"},
         },
         enabled=True,
         save_mode="scalar",
