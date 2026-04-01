@@ -1,7 +1,7 @@
 import numpy as np
 
 from preprocessing import fill_missing, signed_angle
-
+# Note: this is a standalone function that computes only the per-individual kinematic features, without any pairwise or relative terms.
 def compute_individual_kinematics(tracks, features=None, ctr_ind=1, fwd_ind=0, delt=1):
     """
     Compute per-individual kinematic features for all flies, based on the same math as compute_features,
