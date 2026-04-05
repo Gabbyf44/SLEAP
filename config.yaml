@@ -7,7 +7,7 @@ instance_model:   "W:/Rotem/analysisData/currentModel/250717_162759.centered_ins
 sleap_output_name: "inference.slp"
 
 fps: 30
-pxpermm: 10.5
+pxpermm: 12.66666666666667  # 10.5
 
 # Expected SLEAP skeleton node names, in index order.
 node_names_expected:
